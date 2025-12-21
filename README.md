@@ -100,26 +100,6 @@ Open `http://localhost:5173` in your browser.
 - Gemini API access (API key)
 - Google Cloud project with Google Docs API enabled and credentials
 
-Example environment variables:
-
-GEMINI_API_KEY="your_gemini_api_key"
-GOOGLE_APPLICATION_CREDENTIALS="/path/to/google-credentials.json"
-WHISPER_MODEL="small" # local Whisper model name
-OUTPUT_DOC_ID="optional-doc-id" # existing Google Doc ID (optional)
-
-
-Example backend setup (placeholder, adjust to your actual structure):
-
-python -m venv .venv
-source .venv/bin/activate # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-Example commands
-python app.py --source mic
-python transcribe_file.py --input lecture.mp3 --model $WHISPER_MODEL
-
-
----
 
 ## 4. How Frontend and Backend Fit Together
 
