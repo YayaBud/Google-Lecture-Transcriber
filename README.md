@@ -63,16 +63,6 @@ npm run dev
 
 Open `http://localhost:5173` in your browser.
 
-Project structure (frontend):
-
-src/
-├── components/
-│ ├── dashboard/ # Sidebar, header, stats cards, note cards
-│ ├── landing/ # Navbar, Hero, Features, CTA, Footer
-│ └── ui/ # Reusable UI primitives
-├── pages/ # Index, Dashboard, Notes, Record, etc.
-├── lib/ # Utility functions (supabase client, helpers)
-└── index.css # Global Tailwind styles and theme tokens
 
 
 ---
