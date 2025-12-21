@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Clean Light Theme (Apple Style) */
+    --background: 0 0% 100%;       /* Pure white */
+    --foreground: 240 10% 3.9%;    /* Almost black text */
+    
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    
+    --primary: 221.2 83.2% 53.3%;  /* Clean Apple Blue */
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 240 4.8% 95.9%;   /* Very light gray */
+    --secondary-foreground: 240 5.9% 10%;
+    
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5% 64.9%;
+    
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Clean Dark Theme (Modern) */
+    --background: 240 10% 3.9%;    /* Almost black background */
+    --foreground: 0 0% 98%;        /* White text */
+    
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    
+    --primary: 217.2 91.2% 59.8%;  /* Bright Blue for dark mode */
+    --primary-foreground: 222.2 47.4% 11.2%;
+    
+    --secondary: 240 3.7% 15.9%;   /* Dark gray */
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased transition-colors duration-300;
+  }
+}
+
+/* Minimalist Utilities */
+.glass {
+  @apply bg-background/80 backdrop-blur-md border border-border/50;
+}
+
+.text-gradient {
+  /* Simple subtle gradient or just solid color */
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
