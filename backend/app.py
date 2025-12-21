@@ -52,7 +52,7 @@ def transcribe_audio():
         # Transcribe with Whisper
         print("Starting Whisper transcription...")
         result = model.transcribe(temp_path)
-        transcript = result["text"].strip()  # Remove leading/trailing whitespace
+        transcript = result["text"]
         
         print(f"Transcription complete!")
         print(f"Transcript length: {len(transcript)} characters")
