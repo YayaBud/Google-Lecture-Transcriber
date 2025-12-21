@@ -7,12 +7,13 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Notes from "./pages/Notes";
 import Record from "./pages/Record";
+import Login from "./pages/Login";   // Import this
+import Signup from "./pages/Signup"; // Import this
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-// Theme initializer to prevent flash
 const ThemeInitializer = () => {
   useEffect(() => {
     const saved = localStorage.getItem("theme");
@@ -31,6 +32,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/login" element={<Login />} />   {/* Add this */}
+          <Route path="/signup" element={<Signup />} /> {/* Add this */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/notes" element={<Notes />} />
           <Route path="/dashboard/record" element={<Record />} />
