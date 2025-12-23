@@ -8,13 +8,22 @@ interface NoteCardProps {
   duration: string;
   preview: string;
   isFavorite: boolean;
+  onClick?: () => void;
 }
 
-const NoteCard = ({ title, subject, date, duration, preview, isFavorite: initialFavorite }: NoteCardProps) => {
+const NoteCard = ({ title, subject, date, duration, preview, isFavorite: initialFavorite, onClick, onToggleFavorite }: NoteCardProps & { onToggleFavorite?: () => void }) => {
   const [isFavorite, setIsFavorite] = useState(initialFavorite);
 
+  // Sync local state if prop changes (e.g. from parent refresh)
+  if (initialFavorite !== isFavorite) {
+      setIsFavorite(initialFavorite);
+  }
+
   return (
-    <div className="h-full p-5 rounded-3xl bg-card border border-border/50 shadow-sm hover:shadow-lg hover:border-primary/20 transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden">
+    <div 
+      onClick={onClick}
+      className="h-full p-5 rounded-3xl bg-card border border-border/50 shadow-sm hover:shadow-lg hover:border-primary/20 transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+    >
       {/* Top Gradient Accent */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/50 to-purple-500/50 opacity-0 group-hover:opacity-100 transition-opacity" />
       
@@ -26,7 +35,9 @@ const NoteCard = ({ title, subject, date, duration, preview, isFavorite: initial
           <button
             onClick={(e) => {
               e.stopPropagation();
+              // Optimistic update
               setIsFavorite(!isFavorite);
+              if (onToggleFavorite) onToggleFavorite();
             }}
             className="p-1.5 rounded-full hover:bg-secondary transition-colors"
           >

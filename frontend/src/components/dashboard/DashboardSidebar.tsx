@@ -28,8 +28,26 @@ const bottomNavItems = [
   { title: "Help", url: "/dashboard/help", icon: HelpCircle },
 ];
 
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+
 const DashboardSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    try {
+      await fetch('http://localhost:5000/auth/logout');
+      toast({
+        title: "Logged out",
+        description: "See you soon!",
+      });
+      navigate('/login');
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
+  };
 
   return (
     <aside 
@@ -102,6 +120,7 @@ const DashboardSidebar = () => {
         ))}
         
         <button
+          onClick={handleLogout}
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors",
             collapsed && "justify-center"

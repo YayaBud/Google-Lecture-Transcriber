@@ -1,52 +1,51 @@
-# Google Lecture Transcriber / NoteFlow
+# NoteFlow Frontend
 
-Google Lecture Transcriber is an AI-powered system for turning live lectures into structured, high-quality notes. The project currently consists of:
+NoteFlow is the modern React frontend for the Google Lecture Transcriber system. It provides a beautiful, responsive interface for recording lectures, managing notes, and organizing study materials.
 
-- **NoteFlow** – a modern React frontend for recording sessions, browsing notes, and viewing summaries.
-- **Backend architecture (planned/experimental)** – real-time transcription, Gemini-based summarization, and Google Docs integration for persistent, shareable notes.
+## Features
 
----
+- **Dashboard**: Bento-style overview of your notes and statistics.
+- **Recording Interface**: Simple UI to record lectures and view real-time status.
+- **Note Management**: 
+  - View auto-generated notes with formatting.
+  - Organize notes into **Folders**.
+  - Mark important notes as **Favorites**.
+- **Google Docs Integration**: One-click export of notes to your Google Drive.
+- **Dark/Light Mode**: Fully supported theming.
 
-## 1. Project Overview
-
-### NoteFlow (Current Frontend)
-
-NoteFlow is a beautiful, responsive web interface where users can:
-
-- View a landing page with a clean, minimal design.
-- Access a dashboard with stats, recent notes, and quick actions.
-- Browse all notes in a card-based layout.
-- Experience smooth animations, transitions, and a light/dark theme toggle.
-
-### Backend Concept (Planned / To Be Integrated)
-
-The backend is designed to:
-
-- Capture live lecture audio (microphone or recorded files).
-- Transcribe audio into text (initially with Whisper; designed to support Google Cloud Speech-to-Text).
-- Use Gemini to generate structured notes, highlights, and optionally Q&A.
-- Export notes and audio references to Google Docs via the Google Docs API.
-
----
-
-## 2. Frontend – NoteFlow UI
-
-### Features
-
-- **Modern Dashboard UI**: Bento-style cards for stats and notes.
-- **Dark/Light Mode**: Toggle between themes with smooth transitions.
-- **Responsive Layout**: Works across desktop and mobile.
-- **Animations**: Framer Motion for subtle, polished interactions.
-- **Iconography**: Lucide icons for a clean, consistent look.
-
-### Tech Stack
+## Tech Stack
 
 - **Framework**: React + TypeScript
 - **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **Components**: Custom components inspired by shadcn/ui patterns
-- **Animations**: Framer Motion
+- **Styling**: Tailwind CSS + Shadcn/UI (Radix Primitives)
+- **State Management**: React Query & Local State
 - **Routing**: React Router DOM
+
+## Installation
+
+1.  **Navigate to the frontend directory:**
+    ```bash
+    cd frontend
+    ```
+
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Run the development server:**
+    ```bash
+    npm run dev
+    ```
+
+The application will be available at `http://localhost:5173`.
+
+## Project Structure
+
+- `src/pages`: Main route components (Dashboard, Notes, Folders, etc.)
+- `src/components`: Reusable UI components (buttons, cards, dialogs).
+- `src/lib`: Utilities and API clients (Supabase client, etc.).
+
 
 ### Frontend Setup
 

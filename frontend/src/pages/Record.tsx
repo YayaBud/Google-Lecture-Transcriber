@@ -5,14 +5,18 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import ReactMarkdown from 'react-markdown';
 
 const Record = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [notes, setNotes] = useState("");
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const [docUrl, setDocUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
+  const [micLevel, setMicLevel] = useState(0);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -44,23 +48,76 @@ const Record = () => {
 
   const startRecording = async () => {
     try {
+      console.log("Requesting microphone access...");
+      // Revert to simple constraints to ensure compatibility
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      console.log("Microphone access granted.");
+
+      // Check for audio input levels
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      // Monitor levels periodically
+      const checkLevelInterval = setInterval(() => {
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+        setMicLevel(average); // Update state for UI
+      }, 100);
+      
+      // Store interval to clear later
+      // @ts-ignore
+      mediaRecorderRef.current = { ...mediaRecorderRef.current, checkLevelInterval, audioContext };
+
+      // Prefer standard WebM
+      let options = { mimeType: 'audio/webm' };
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+         options = { mimeType: 'audio/webm;codecs=opus' };
+      }
+      
+      console.log("Starting recording with options:", options);
+      const mediaRecorder = new MediaRecorder(stream, options);
+      // @ts-ignore
       mediaRecorderRef.current = mediaRecorder;
+      // @ts-ignore
+      mediaRecorder.checkLevelInterval = checkLevelInterval;
+      // @ts-ignore
+      mediaRecorder.audioContext = audioContext;
+      
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
+          console.log(`Received audio chunk: ${event.data.size} bytes`);
         }
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        await transcribeAudio(audioBlob);
+        clearInterval(checkLevelInterval);
+        if (audioContext.state !== 'closed') {
+            audioContext.close();
+        }
+        
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        console.log(`MediaRecorder stopped. Total chunks: ${audioChunksRef.current.length}`);
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        
+        let ext = 'webm';
+        if (mimeType.includes('mp4')) ext = 'mp4';
+        else if (mimeType.includes('wav')) ext = 'wav';
+        else if (mimeType.includes('ogg')) ext = 'ogg';
+
+        console.log(`Recording stopped. MimeType: ${mimeType}, Extension: ${ext}, Size: ${audioBlob.size}`);
+        await transcribeAudio(audioBlob, ext);
         
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
+        audioContext.close();
       };
 
       mediaRecorder.start();
@@ -81,20 +138,31 @@ const Record = () => {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
+      // @ts-ignore
+      if (mediaRecorderRef.current.checkLevelInterval) {
+         // @ts-ignore
+         clearInterval(mediaRecorderRef.current.checkLevelInterval);
+      }
+      // @ts-ignore
+      if (mediaRecorderRef.current.audioContext && mediaRecorderRef.current.audioContext.state !== 'closed') {
+         // @ts-ignore
+         mediaRecorderRef.current.audioContext.close();
+      }
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
   };
 
-  const transcribeAudio = async (audioBlob: Blob) => {
+  const transcribeAudio = async (audioBlob: Blob, ext: string) => {
     setIsProcessing(true);
     try {
       const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.wav');
+      formData.append('audio', audioBlob, `recording.${ext}`);
 
       const response = await fetch('http://localhost:5000/transcribe', {
         method: 'POST',
         body: formData,
+        credentials: 'include', // Send cookies
       });
 
       const data = await response.json();
@@ -131,6 +199,7 @@ const Record = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Send cookies
         body: JSON.stringify({ transcript }),
       });
 
@@ -138,6 +207,7 @@ const Record = () => {
       
       if (data.success) {
         setNotes(data.notes);
+        if (data.note_id) setNoteId(data.note_id);
         toast({
           title: "Notes generated",
           description: "AI has created structured notes from your lecture",
@@ -167,7 +237,8 @@ const Record = () => {
         credentials: 'include',
         body: JSON.stringify({ 
           notes,
-          title: `Lecture Notes - ${new Date().toLocaleDateString()}`
+          title: `Lecture Notes - ${new Date().toLocaleDateString()}`,
+          note_id: noteId
         }),
       });
 
@@ -184,6 +255,7 @@ const Record = () => {
       }
       
       if (data.success) {
+        setDocUrl(data.doc_url);
         toast({
           title: "Pushed to Google Docs",
           description: "Notes saved successfully",
@@ -254,6 +326,21 @@ const Record = () => {
                 </button>
               </div>
 
+              {/* Mic Level Indicator */}
+              {isRecording && (
+                <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden mx-auto">
+                    <div 
+                        className={`h-full transition-all duration-100 ${micLevel > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.min(100, (micLevel / 255) * 300)}%` }}
+                    />
+                </div>
+              )}
+              {isRecording && micLevel === 0 && (
+                  <p className="text-red-500 text-sm font-bold animate-pulse">
+                      No audio detected! Check your microphone.
+                  </p>
+              )}
+
               <div className="text-center space-y-4">
                 <h2 className="text-2xl font-display font-bold text-foreground">
                   {isProcessing ? "Processing audio..." : isRecording ? "Recording in progress..." : "Click to start recording"}
@@ -312,18 +399,31 @@ const Record = () => {
               >
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold text-foreground">AI Generated Notes</h3>
-                  <Button
-                    onClick={pushToGoogleDocs}
-                    size="sm"
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Push to Google Docs
-                  </Button>
+                  <div className="flex gap-2">
+                    {docUrl && (
+                      <Button
+                        onClick={() => window.open(docUrl, '_blank')}
+                        size="sm"
+                        variant="secondary"
+                        className="gap-2"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Open in Docs
+                      </Button>
+                    )}
+                    <Button
+                      onClick={pushToGoogleDocs}
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      {docUrl ? 'Update Doc' : 'Push to Google Docs'}
+                    </Button>
+                  </div>
                 </div>
-                <div className="prose prose-sm max-w-none text-muted-foreground">
-                  <pre className="whitespace-pre-wrap font-sans">{notes}</pre>
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <ReactMarkdown>{notes}</ReactMarkdown>
                 </div>
               </motion.div>
             )}

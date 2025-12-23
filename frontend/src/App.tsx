@@ -7,9 +7,13 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Notes from "./pages/Notes";
 import Record from "./pages/Record";
-import Login from "./pages/Login";   // Import this
-import Signup from "./pages/Signup"; // Import this
+import Folders from "./pages/Folders";
+import Help from "./pages/Help";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import ProtectedRoute from "./components/ProtectedRoute";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
@@ -32,15 +36,20 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />   {/* Add this */}
-          <Route path="/signup" element={<Signup />} /> {/* Add this */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/notes" element={<Notes />} />
-          <Route path="/dashboard/record" element={<Record />} />
-          <Route path="/dashboard/favorites" element={<Notes />} />
-          <Route path="/dashboard/folders" element={<Notes />} />
-          <Route path="/dashboard/settings" element={<Dashboard />} />
-          <Route path="/dashboard/help" element={<Dashboard />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          
+          {/* Protected Routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/notes" element={<Notes />} />
+            <Route path="/dashboard/record" element={<Record />} />
+            <Route path="/dashboard/favorites" element={<Notes />} />
+            <Route path="/dashboard/folders" element={<Folders />} />
+            <Route path="/dashboard/settings" element={<Settings />} />
+            <Route path="/dashboard/help" element={<Help />} />
+          </Route>
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
