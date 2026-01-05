@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
-import Notes from "./pages/Notes";
+import AllNotes from "./pages/AllNotes";
+import FavoriteNotes from "./pages/FavoriteNotes";
 import Record from "./pages/Record";
 import Folders from "./pages/Folders";
 import Help from "./pages/Help";
@@ -42,9 +43,9 @@ const App = () => (
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/notes" element={<Notes />} />
+            <Route path="/dashboard/notes" element={<AllNotes />} />
             <Route path="/dashboard/record" element={<Record />} />
-            <Route path="/dashboard/favorites" element={<Notes />} />
+            <Route path="/dashboard/favorites" element={<FavoriteNotes />} />
             <Route path="/dashboard/folders" element={<Folders />} />
             <Route path="/dashboard/settings" element={<Settings />} />
             <Route path="/dashboard/help" element={<Help />} />

@@ -4,17 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Folder, Plus, FileText } from "lucide-react";
+import { Folder, Plus, FileText, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Note {
   id: string;
   title: string;
 }
 
-interface Folder {
+interface FolderType {
   id: string;
   name: string;
   note_ids: string[];
@@ -24,12 +30,15 @@ interface Folder {
 const Folders = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [folders, setFolders] = useState<Folder[]>([]);
+  const [folders, setFolders] = useState<FolderType[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newFolderName, setNewFolderName] = useState("");
   const [selectedNotes, setSelectedNotes] = useState<string[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [renameFolderId, setRenameFolderId] = useState("");
+  const [renameFolderName, setRenameFolderName] = useState("");
 
   const fetchData = async () => {
     try {
@@ -46,7 +55,16 @@ const Folders = () => {
       const foldersData = await foldersRes.json();
       const notesData = await notesRes.json();
 
-      if (foldersData.success) setFolders(foldersData.folders);
+      if (foldersData.success) {
+        // Filter out notes that no longer exist
+        const updatedFolders = foldersData.folders.map((folder: FolderType) => ({
+          ...folder,
+          note_ids: folder.note_ids.filter((noteId: string) => 
+            notesData.notes.some((note: Note) => note.id === noteId)
+          )
+        }));
+        setFolders(updatedFolders);
+      }
       if (notesData.success) setNotes(notesData.notes);
     } catch (error) {
       console.error("Failed to fetch data", error);
@@ -88,6 +106,51 @@ const Folders = () => {
     }
   };
 
+  const handleRenameFolder = async () => {
+    if (!renameFolderName.trim()) return;
+
+    try {
+      const response = await fetch(`http://localhost:5000/folders/${renameFolderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: renameFolderName }),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        toast({ title: "Folder renamed", description: "Your folder has been renamed." });
+        setIsRenameOpen(false);
+        setRenameFolderId("");
+        setRenameFolderName("");
+        fetchData();
+      } else {
+        toast({ title: "Error", description: "Failed to rename folder", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to rename folder", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    if (!confirm('Are you sure you want to delete this folder?')) return;
+
+    try {
+      const response = await fetch(`http://localhost:5000/folders/${folderId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        toast({ title: "Folder deleted", description: "Your folder has been deleted." });
+        fetchData();
+      } else {
+        toast({ title: "Error", description: "Failed to delete folder", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete folder", variant: "destructive" });
+    }
+  };
+
   const toggleNoteSelection = (noteId: string) => {
     setSelectedNotes(prev => 
       prev.includes(noteId) 
@@ -96,14 +159,20 @@ const Folders = () => {
     );
   };
 
+  const openRenameDialog = (folder: FolderType) => {
+    setRenameFolderId(folder.id);
+    setRenameFolderName(folder.name);
+    setIsRenameOpen(true);
+  };
+
   return (
     <div className="flex h-screen bg-background transition-colors duration-500">
       <DashboardSidebar />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader 
-          title="Folders" 
-          subtitle="Organize your notes into collections"
+          title="Subjects" 
+          subtitle="Organize your notes into subject collections"
         />
         
         <main className="flex-1 overflow-auto p-6">
@@ -168,8 +237,31 @@ const Folders = () => {
                 {folders.map((folder) => (
                   <div 
                     key={folder.id}
-                    className="p-6 rounded-xl bg-card border border-border hover:shadow-lg transition-all cursor-pointer group"
+                    className="p-6 rounded-xl bg-card border border-border hover:shadow-lg transition-all group relative"
                   >
+                    <div className="absolute top-4 right-4">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openRenameDialog(folder)}>
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleDeleteFolder(folder.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
                     <div className="flex items-center gap-4 mb-4">
                       <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                         <Folder className="w-6 h-6" />
@@ -210,6 +302,33 @@ const Folders = () => {
           </div>
         </main>
       </div>
+
+      {/* Rename Dialog */}
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              value={renameFolderName}
+              onChange={(e) => setRenameFolderName(e.target.value)}
+              placeholder="Enter new folder name"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameFolder();
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameFolder}>
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

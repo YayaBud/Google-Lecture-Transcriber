@@ -14,22 +14,21 @@ import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 const mainNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "All Notes", url: "/dashboard/notes", icon: FileText },
   { title: "Record", url: "/dashboard/record", icon: Mic },
   { title: "Favorites", url: "/dashboard/favorites", icon: Star },
-  { title: "Folders", url: "/dashboard/folders", icon: FolderOpen },
+  { title: "Subjects", url: "/dashboard/folders", icon: FolderOpen },
 ];
 
 const bottomNavItems = [
   { title: "Settings", url: "/dashboard/settings", icon: Settings },
   { title: "Help", url: "/dashboard/help", icon: HelpCircle },
 ];
-
-import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
 
 const DashboardSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -52,7 +51,6 @@ const DashboardSidebar = () => {
   return (
     <aside 
       className={cn(
-        // FIX: Removed specific bg colors, now uses theme variable 'bg-card' or 'bg-background'
         "h-screen border-r border-border flex flex-col transition-all duration-300 bg-card/50 backdrop-blur-xl",
         collapsed ? "w-16" : "w-64"
       )}

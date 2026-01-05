@@ -964,6 +964,53 @@ def create_folder():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/folders/<folder_id>', methods=['PUT'])
+@login_required
+def update_folder(folder_id):
+    """Update folder name or notes"""
+    try:
+        data = request.json
+        user_id = session['user_id']
+        
+        folder = db.folders.find_one({'_id': ObjectId(folder_id), 'user_id': user_id})
+        if not folder:
+            return jsonify({'error': 'Folder not found'}), 404
+        
+        update_fields = {}
+        if 'name' in data:
+            update_fields['name'] = data['name']
+        if 'note_ids' in data:
+            update_fields['note_ids'] = data['note_ids']
+        
+        db.folders.update_one(
+            {'_id': ObjectId(folder_id)},
+            {'$set': update_fields}
+        )
+        
+        return jsonify({'success': True, 'message': 'Folder updated'})
+    except Exception as e:
+        print(f"Error updating folder: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/folders/<folder_id>', methods=['DELETE'])
+@login_required
+def delete_folder(folder_id):
+    """Delete a folder"""
+    try:
+        user_id = session['user_id']
+        
+        result = db.folders.delete_one({'_id': ObjectId(folder_id), 'user_id': user_id})
+        
+        if result.deleted_count == 0:
+            return jsonify({'error': 'Folder not found'}), 404
+        
+        return jsonify({'success': True, 'message': 'Folder deleted'})
+    except Exception as e:
+        print(f"Error deleting folder: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/notes', methods=['POST'])
 @login_required
 def create_note_metadata():
@@ -994,6 +1041,54 @@ def create_note_metadata():
     except Exception as e:
         print(f"Error creating note: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/notes/<note_id>', methods=['PUT'])
+@login_required
+def update_note(note_id):
+    """Update note title or content"""
+    try:
+        data = request.json
+        user_id = session['user_id']
+        
+        note = notes_collection.find_one({'_id': ObjectId(note_id), 'user_id': user_id})
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+        
+        update_fields = {'updated_at': time.time()}
+        
+        if 'title' in data:
+            update_fields['title'] = data['title']
+        if 'content' in data:
+            update_fields['content'] = data['content']
+        
+        notes_collection.update_one(
+            {'_id': ObjectId(note_id)},
+            {'$set': update_fields}
+        )
+        
+        return jsonify({'success': True, 'message': 'Note updated'})
+    except Exception as e:
+        print(f"Error updating note: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/notes/<note_id>', methods=['DELETE'])
+@login_required
+def delete_note(note_id):
+    """Delete a note"""
+    try:
+        user_id = session['user_id']
+        
+        result = notes_collection.delete_one({'_id': ObjectId(note_id), 'user_id': user_id})
+        
+        if result.deleted_count == 0:
+            return jsonify({'error': 'Note not found'}), 404
+        
+        return jsonify({'success': True, 'message': 'Note deleted'})
+    except Exception as e:
+        print(f"Error deleting note: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/push-to-docs', methods=['POST'])
 @login_required
