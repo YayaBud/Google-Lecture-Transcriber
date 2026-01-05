@@ -61,8 +61,13 @@ masked_uri = MONGO_URI.replace(password, '********')
 print(f"Connecting to MongoDB with URI: {masked_uri}")
 
 try:
-    mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000) # Add timeout
-    db = mongo_client.get_database('note_flow_db') # Use a specific database name
+    mongo_client = MongoClient(
+        MONGO_URI, 
+        serverSelectionTimeoutMS=5000,
+        tls=True,
+        tlsAllowInvalidCertificates=True  
+    )
+    db = mongo_client.get_database('note_flow_db')
     users_collection = db.users
     notes_collection = db.notes
     # Test connection
@@ -110,7 +115,7 @@ else:
 
 # Use local Ollama 'gemma' model (CLI first, HTTP fallback)
 # Default to gemma3:4b as requested
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'gemma3:4b')
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'gemma2:2b')
 
 # Try to find ollama executable
 OLLAMA_CLI = 'ollama'
@@ -353,7 +358,13 @@ def decode_audio_to_np(path: str, target_sr: int = 16000) -> Tuple[Optional[np.n
 
 # Google OAuth setup
 SCOPES = ['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file']
-LOGIN_SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']
+LOGIN_SCOPES = [
+    'openid', 
+    'https://www.googleapis.com/auth/userinfo.email', 
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/documents',
+    'https://www.googleapis.com/auth/drive.file'
+]
 CLIENT_SECRET_FILE = 'credentials_oauth.json'
 
 @app.route('/auth/google/login')
@@ -392,6 +403,16 @@ def google_login_callback():
     
     credentials = flow.credentials
     
+    # Save credentials for later use in push-to-docs
+    creds_data = {
+        'token': credentials.token,
+        'refresh_token': credentials.refresh_token,
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes
+    }
+    
     # Get user info
     service = build('oauth2', 'v2', credentials=credentials)
     user_info = service.userinfo().get().execute()
@@ -407,19 +428,21 @@ def google_login_callback():
     user = users_collection.find_one({'email': email})
     
     if user:
-        # User exists, log them in
+        # User exists, update credentials
         user_id = user['_id']
+        users_collection.update_one(
+            {'_id': user_id},
+            {'$set': {'google_credentials': creds_data}}
+        )
     else:
-        # Register new user
-        # We don't have a password, so we might need to handle that. 
-        # For now, we'll just create a user without a password (or a random one)
-        # and mark them as google-auth only if we wanted, but our schema is flexible.
+        # Register new user with credentials
         user_id = users_collection.insert_one({
             'email': email,
             'first_name': first_name,
             'last_name': last_name,
             'created_at': time.time(),
-            'auth_provider': 'google'
+            'auth_provider': 'google',
+            'google_credentials': creds_data
         }).inserted_id
         
     session['user_id'] = str(user_id)
