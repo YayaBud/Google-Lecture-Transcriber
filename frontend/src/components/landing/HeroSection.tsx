@@ -56,14 +56,27 @@ const HeroSection = () => {
             Capture every word with AI precision. We transcribe, summarize, and organize your study material while you focus on learning.
           </motion.p>
 
+          {/* ✅ FIXED: Buttons now use theme colors properly */}
           <motion.div variants={item} className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-24">
-            <Button size="xl" className="rounded-full px-8 h-12 text-base font-semibold bg-foreground text-background hover:bg-foreground/90 transition-all shadow-sm" asChild>
+            {/* Primary button - uses your theme's primary color */}
+            <Button 
+              size="lg" 
+              className="rounded-full px-8 h-12 text-base font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105" 
+              asChild
+            >
               <Link to="/dashboard">
                 Start for Free
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Link>
             </Button>
-            <Button variant="outline" size="xl" className="rounded-full px-8 h-12 text-base font-semibold bg-background hover:bg-secondary transition-all" asChild>
+            
+            {/* Secondary button - outline style */}
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="rounded-full px-8 h-12 text-base font-semibold transition-all hover:scale-105" 
+              asChild
+            >
               <Link to="#how-it-works">See How It Works</Link>
             </Button>
           </motion.div>

@@ -124,6 +124,7 @@ const FavoriteNotes = () => {
           title="Favorite Notes" 
           subtitle="Your starred notes collection"
           onSearch={handleSearch}
+          showSearch={true}
         />
         
         <main className="flex-1 overflow-auto p-6">

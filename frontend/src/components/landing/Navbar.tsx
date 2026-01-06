@@ -12,9 +12,8 @@ const Navbar = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2 group">
-            {/* Fixed Icon: Always Blue Background, White Mic */}
             <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-110">
-              <Mic className="w-5 h-5 text-white" />
+              <Mic className="w-5 h-5 text-primary-foreground" />
             </div>
             <span className="font-display font-bold text-xl text-foreground">
               NoteFlow
@@ -37,13 +36,15 @@ const Navbar = () => {
           <div className="hidden md:flex items-center gap-4">
             <ThemeToggle />
             
-            {/* Login Button - Ghost variant with hover scale */}
             <Button variant="ghost" asChild className="text-base font-medium hover:bg-secondary transition-all duration-300 hover:scale-105">
               <Link to="/login">Log in</Link>
             </Button>
             
-            {/* Sign Up Button - Primary with strong shadow and scale */}
-            <Button className="text-base font-medium rounded-full px-6 bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-primary/25 transition-all duration-300 hover:scale-105" asChild>
+            {/* ✅ FIXED: Removed hardcoded text-white, now uses primary-foreground */}
+            <Button 
+              className="text-base font-medium rounded-full px-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105" 
+              asChild
+            >
               <Link to="/signup">Sign up</Link>
             </Button>
           </div>
@@ -76,7 +77,8 @@ const Navbar = () => {
               <Button variant="ghost" asChild className="w-full justify-start">
                 <Link to="/login">Log in</Link>
               </Button>
-              <Button className="w-full rounded-full bg-primary text-white shadow-lg" asChild>
+              {/* ✅ FIXED: Removed text-white */}
+              <Button className="w-full rounded-full shadow-lg" asChild>
                 <Link to="/signup">Sign up</Link>
               </Button>
             </div>

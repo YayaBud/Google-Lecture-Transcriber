@@ -1,9 +1,17 @@
-from flask import Flask, request, jsonify, redirect, session
+from flask import Flask, request, jsonify, redirect, session, url_for
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from functools import wraps
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from datetime import datetime
+from flask import send_file
+import io
 import os
 import torch
 
@@ -143,7 +151,6 @@ def generate_with_ollama(prompt: str, timeout: int = 120) -> str:
     
     # Try CLI first
     try:
-        # Use 'run' instead of 'generate' for Ollama CLI
         proc = subprocess.run(
             [OLLAMA_CLI, 'run', OLLAMA_MODEL], 
             input=prompt,
@@ -161,8 +168,7 @@ def generate_with_ollama(prompt: str, timeout: int = 120) -> str:
 
     # Fallback to HTTP API
     try:
-        # FIX: Use proper Ollama URL, not MongoDB URL
-        ollama_url = 'http://localhost:11434'  # Hardcode for now
+        ollama_url = 'http://localhost:11434'
         
         payload = {
             "model": OLLAMA_MODEL, 
@@ -291,12 +297,13 @@ LOGIN_SCOPES = [
 ]
 CLIENT_SECRET_FILE = 'credentials_oauth.json'
 
+# ✅ FIXED: Google OAuth Login Route
 @app.route('/auth/google/login')
 def google_login():
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRET_FILE,
         scopes=LOGIN_SCOPES,
-        redirect_uri='http://localhost:5000/auth/google/login/callback'
+        redirect_uri='http://localhost:5000/auth/google/callback'  # Fixed to match callback
     )
     authorization_url, state = flow.authorization_url(
         access_type='offline',
@@ -305,60 +312,68 @@ def google_login():
     session['state'] = state
     return redirect(authorization_url)
 
-@app.route('/auth/google/login/callback')
+# ✅ FIXED: Correct callback route name
+@app.route('/auth/google/callback')
 def google_login_callback():
-    if 'state' not in session:
-        return jsonify({'error': 'State missing from session'}), 400
-    state = session['state']
-    
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRET_FILE,
-        scopes=LOGIN_SCOPES,
-        state=state,
-        redirect_uri='http://localhost:5000/auth/google/login/callback'
-    )
-    flow.fetch_token(authorization_response=request.url)
-    credentials = flow.credentials
-    
-    creds_data = {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
-    }
-    
-    service = build('oauth2', 'v2', credentials=credentials)
-    user_info = service.userinfo().get().execute()
-    
-    email = user_info.get('email')
-    first_name = user_info.get('given_name', '')
-    last_name = user_info.get('family_name', '')
-    
-    if not email:
-        return jsonify({'error': 'Could not retrieve email'}), 400
+    try:
+        if 'state' not in session:
+            return jsonify({'error': 'State missing from session'}), 400
         
-    user = users_collection.find_one({'email': email})
-    
-    if user:
-        user_id = user['_id']
-        users_collection.update_one(
-            {'_id': user_id},
-            {'$set': {'google_credentials': creds_data}}
+        state = session['state']
+        
+        flow = Flow.from_client_secrets_file(
+            CLIENT_SECRET_FILE,
+            scopes=LOGIN_SCOPES,
+            state=state,
+            redirect_uri='http://localhost:5000/auth/google/callback'  # Must match exactly
         )
-    else:
-        user_id = users_collection.insert_one({
-            'email': email,
-            'first_name': first_name,
-            'last_name': last_name,
-            'created_at': time.time(),
-            'auth_provider': 'google',
-            'google_credentials': creds_data
-        }).inserted_id
+        flow.fetch_token(authorization_response=request.url)
+        credentials = flow.credentials
         
-    session['user_id'] = str(user_id)
-    return redirect("http://localhost:5173/dashboard")
+        creds_data = {
+            'token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes
+        }
+        
+        service = build('oauth2', 'v2', credentials=credentials)
+        user_info = service.userinfo().get().execute()
+        
+        email = user_info.get('email')
+        first_name = user_info.get('given_name', '')
+        last_name = user_info.get('family_name', '')
+        
+        if not email:
+            return jsonify({'error': 'Could not retrieve email'}), 400
+            
+        user = users_collection.find_one({'email': email})
+        
+        if user:
+            user_id = user['_id']
+            users_collection.update_one(
+                {'_id': user_id},
+                {'$set': {'google_credentials': creds_data}}
+            )
+        else:
+            user_id = users_collection.insert_one({
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'created_at': time.time(),
+                'auth_provider': 'google',
+                'google_credentials': creds_data
+            }).inserted_id
+            
+        session['user_id'] = str(user_id)
+        print(f"✅ User {email} logged in successfully!")
+        return redirect("http://localhost:5173/dashboard")
+        
+    except Exception as e:
+        print(f"❌ OAuth callback error: {str(e)}")
+        return redirect("http://localhost:5173/login?error=auth_failed")
 
 @app.route('/auth/status')
 def auth_status():
@@ -411,18 +426,16 @@ def transcribe_audio():
 
         print(f"Saved upload to: {temp_path} (Size: {os.path.getsize(temp_path)} bytes)")
         
-        # Debug save
         debug_orig_path = os.path.join(DEBUG_DIR, f"{ts}_original{orig_ext}")
         shutil.copy(temp_path, debug_orig_path)
         
         start_time = time.time()
 
-        # Transcribe with faster-whisper
         print(f"🎤 Starting transcription with {WHISPER_MODEL}...")
         segments, info = model.transcribe(
             temp_path,
-            language=None,  # Auto-detect
-            task='translate',  # Translate to English
+            language=None,
+            task='translate',
             beam_size=5,
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500),
@@ -430,7 +443,6 @@ def transcribe_audio():
             condition_on_previous_text=False,
         )
 
-        # Collect transcript
         transcript = ' '.join([segment.text.strip() for segment in segments])
         transcript = transcript.replace(' um ', ' ').replace(' uh ', ' ').strip()
         
@@ -438,7 +450,6 @@ def transcribe_audio():
         print(f"✅ Transcription completed in {elapsed_time:.2f}s")
         print(f"📊 Language: {info.language} (prob: {info.language_probability:.2f})")
 
-        # Cleanup
         try:
             os.unlink(temp_path)
         except:
@@ -664,7 +675,132 @@ def toggle_favorite(note_id):
         return jsonify({'success': True, 'is_favorite': new_status})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
+    
+@app.route('/notes/<note_id>/export-pdf', methods=['GET'])
+@login_required
+def export_pdf(note_id):
+    """Export a note to PDF format"""
+    try:
+        user_id = session['user_id']
+        note = notes_collection.find_one({'_id': ObjectId(note_id), 'user_id': user_id})
+        
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+        
+        title = note.get('title', 'Untitled Note')
+        content = note.get('content', '')
+        created_at = note.get('created_at', time.time())
+        
+        date_str = datetime.fromtimestamp(created_at).strftime('%B %d, %Y at %H:%M')
+        
+        pdf_buffer = io.BytesIO()
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter,
+                              rightMargin=0.75*inch,
+                              leftMargin=0.75*inch,
+                              topMargin=0.75*inch,
+                              bottomMargin=0.75*inch)
+        
+        elements = []
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor='#1f2120',
+            spaceAfter=6,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
+        )
+        
+        subtitle_style = ParagraphStyle(
+            'Subtitle',
+            parent=styles['Normal'],
+            fontSize=11,
+            textColor='#626C7C',
+            alignment=TA_CENTER,
+            spaceAfter=12
+        )
+        
+        body_style = ParagraphStyle(
+            'Body',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=16,
+            textColor='#1f2120',
+            alignment=TA_LEFT,
+            spaceAfter=8
+        )
+        
+        elements.append(Paragraph(title, title_style))
+        elements.append(Paragraph(date_str, subtitle_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        lines = content.split('\n')
+        for line in lines:
+            if not line.strip():
+                elements.append(Spacer(1, 0.1*inch))
+            elif line.startswith('## '):
+                heading_style = ParagraphStyle(
+                    'Heading2',
+                    parent=styles['Heading2'],
+                    fontSize=14,
+                    textColor='#1f2120',
+                    spaceAfter=8,
+                    spaceBefore=8,
+                    fontName='Helvetica-Bold'
+                )
+                elements.append(Paragraph(line[3:], heading_style))
+            elif line.startswith('### '):
+                heading_style = ParagraphStyle(
+                    'Heading3',
+                    parent=styles['Heading3'],
+                    fontSize=12,
+                    textColor='#2d6a82',
+                    spaceAfter=6,
+                    spaceBefore=6,
+                    fontName='Helvetica-Bold'
+                )
+                elements.append(Paragraph(line[4:], heading_style))
+            elif line.startswith('- '):
+                bullet_style = ParagraphStyle(
+                    'BulletPoint',
+                    parent=styles['Normal'],
+                    fontSize=11,
+                    textColor='#1f2120',
+                    leftIndent=0.3*inch,
+                    spaceAfter=4,
+                    leading=14
+                )
+                elements.append(Paragraph('• ' + line[2:], bullet_style))
+            else:
+                elements.append(Paragraph(line, body_style))
+        
+        elements.append(Spacer(1, 0.3*inch))
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor='#A7A9A9',
+            alignment=TA_CENTER
+        )
+        elements.append(Paragraph('Generated with NoteFlow', footer_style))
+        
+        doc.build(elements)
+        pdf_buffer.seek(0)
+        
+        filename = f"{title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    
+    except Exception as e:
+        print(f"Error exporting PDF: {e}")
+        return jsonify({'error': str(e)}), 500
+          
 @app.route('/folders', methods=['GET'])
 @login_required
 def get_folders():
@@ -681,30 +817,6 @@ def get_folders():
                 'created_at': folder.get('created_at')
             })
         return jsonify({'success': True, 'folders': folders})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/folders', methods=['POST'])
-@login_required
-def create_folder():
-    try:
-        user_id = session['user_id']
-        data = request.json
-        name = data.get('name')
-        note_ids = data.get('note_ids', [])
-        
-        if not name:
-            return jsonify({'error': 'Folder name required'}), 400
-            
-        folder_doc = {
-            'user_id': user_id,
-            'name': name,
-            'note_ids': note_ids,
-            'created_at': time.time()
-        }
-        
-        result = db.folders.insert_one(folder_doc)
-        return jsonify({'success': True, 'folder_id': str(result.inserted_id)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -745,6 +857,67 @@ def delete_folder(folder_id):
             return jsonify({'error': 'Folder not found'}), 404
         
         return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/folders/<folder_id>/notes', methods=['POST'])
+@login_required
+def add_notes_to_folder(folder_id):
+    try:
+        user_id = session['user_id']
+        data = request.json
+        note_ids = data.get('note_ids', [])
+        
+        if not note_ids:
+            return jsonify({"error": "No notes provided"}), 400
+        
+        # Verify folder belongs to user
+        folder = db.folders.find_one({"_id": ObjectId(folder_id), "user_id": user_id})
+        if not folder:
+            return jsonify({"error": "Folder not found"}), 404
+        
+        # Get current note_ids or empty list
+        current_note_ids = folder.get('note_ids', [])
+        
+        # Add new note_ids (avoid duplicates)
+        updated_note_ids = list(set(current_note_ids + note_ids))
+        
+        # Update folder
+        db.folders.update_one(
+            {"_id": ObjectId(folder_id)},
+            {"$set": {"note_ids": updated_note_ids}}
+        )
+        
+        return jsonify({
+            "success": True, 
+            "message": f"{len(note_ids)} note(s) added to folder"
+        })
+        
+    except Exception as e:
+        print(f"Error adding notes to folder: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/folders', methods=['POST'])
+@login_required
+def create_folder():
+    try:
+        userid = session['user_id']
+        data = request.json
+        name = data.get('name')
+        note_ids = data.get('note_ids', [])
+        
+        if not name:
+            return jsonify({'error': 'Folder name is required'}), 400
+        
+        folder_doc = {
+            'user_id': userid,
+            'name': name,
+            'note_ids': note_ids,
+            'created_at': time.time()  # ✅ MAKE SURE THIS IS HERE
+        }
+        
+        result = db.folders.insert_one(folder_doc)
+        return jsonify({'success': True, 'folder_id': str(result.inserted_id)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

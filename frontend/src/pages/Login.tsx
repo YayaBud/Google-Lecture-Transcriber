@@ -22,7 +22,8 @@ const Login = () => {
       const response = await fetch('http://localhost:5000/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
+        credentials: 'include'
       });
       
       const data = await response.json();
@@ -62,7 +63,7 @@ const Login = () => {
         <div className="bg-card border border-border rounded-3xl p-8 shadow-xl">
           <div className="flex flex-col items-center mb-8">
             <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shadow-lg mb-4">
-              <Mic className="w-6 h-6 text-white" />
+              <Mic className="w-6 h-6 text-primary-foreground" />
             </div>
             <h1 className="font-display text-2xl font-bold text-foreground">Welcome Back</h1>
             <p className="text-muted-foreground text-sm">Log in to your NoteFlow account</p>
@@ -77,6 +78,7 @@ const Login = () => {
                 required 
                 value={formData.email}
                 onChange={e => setFormData({...formData, email: e.target.value})}
+                className="bg-background border-border"
               />
             </div>
             <div className="space-y-2">
@@ -87,17 +89,20 @@ const Login = () => {
                 required 
                 value={formData.password}
                 onChange={e => setFormData({...formData, password: e.target.value})}
+                className="bg-background border-border"
               />
             </div>
             
+            {/* ✅ FIXED: Dark theme primary button */}
             <Button 
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 text-base rounded-xl bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-primary/25 transition-all duration-300 hover:scale-[1.02]"
+              className="w-full h-11 text-base rounded-xl shadow-lg transition-all duration-300 hover:scale-[1.02]"
             >
               {isLoading ? "Logging in..." : "Log In"}
             </Button>
           </form>
+
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-border" />
@@ -107,10 +112,11 @@ const Login = () => {
             </div>
           </div>
 
+          {/* ✅ FIXED: Dark theme outline button for Google */}
           <Button 
             type="button"
             variant="outline" 
-            className="w-full h-11 rounded-xl border-border hover:bg-accent hover:text-accent-foreground transition-all duration-300"
+            className="w-full h-11 rounded-xl transition-all duration-300 hover:bg-accent"
             onClick={() => {
               window.location.href = 'http://localhost:5000/auth/google/login';
             }}
@@ -120,6 +126,7 @@ const Login = () => {
             </svg>
             Google
           </Button>
+
           <div className="mt-6 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
             <Link to="/signup" className="text-primary font-semibold hover:underline">

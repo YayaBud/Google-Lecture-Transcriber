@@ -49,11 +49,9 @@ const Record = () => {
   const startRecording = async () => {
     try {
       console.log("Requesting microphone access...");
-      // Revert to simple constraints to ensure compatibility
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       console.log("Microphone access granted.");
 
-      // Check for audio input levels
       const audioContext = new AudioContext();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
@@ -62,18 +60,15 @@ const Record = () => {
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
 
-      // Monitor levels periodically
       const checkLevelInterval = setInterval(() => {
         analyser.getByteFrequencyData(dataArray);
         const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-        setMicLevel(average); // Update state for UI
+        setMicLevel(average);
       }, 100);
       
-      // Store interval to clear later
       // @ts-ignore
       mediaRecorderRef.current = { ...mediaRecorderRef.current, checkLevelInterval, audioContext };
 
-      // Prefer standard WebM
       let options = { mimeType: 'audio/webm' };
       if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
          options = { mimeType: 'audio/webm;codecs=opus' };
@@ -115,7 +110,6 @@ const Record = () => {
         console.log(`Recording stopped. MimeType: ${mimeType}, Extension: ${ext}, Size: ${audioBlob.size}`);
         await transcribeAudio(audioBlob, ext);
         
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
         audioContext.close();
       };
@@ -132,6 +126,7 @@ const Record = () => {
       toast({
         title: "Microphone access denied",
         description: "Please allow microphone permissions",
+        variant: "destructive"
       });
     }
   };
@@ -162,15 +157,13 @@ const Record = () => {
       const response = await fetch('http://localhost:5000/transcribe', {
         method: 'POST',
         body: formData,
-        credentials: 'include', // Send cookies
+        credentials: 'include',
       });
 
       const data = await response.json();
       
       if (data.success) {
         console.log("Transcript received:", data.transcript);
-        console.log("Transcript length:", data.transcript.length);
-        console.log("Transcript type:", typeof data.transcript);
         setTranscript(data.transcript);
         toast({
           title: "Transcription complete",
@@ -183,6 +176,7 @@ const Record = () => {
       toast({
         title: "Transcription failed",
         description: "Please try recording again",
+        variant: "destructive"
       });
     } finally {
       setIsProcessing(false);
@@ -199,7 +193,7 @@ const Record = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Send cookies
+        credentials: 'include',
         body: JSON.stringify({ transcript }),
       });
 
@@ -219,6 +213,7 @@ const Record = () => {
       toast({
         title: "Note generation failed",
         description: "Please try again",
+        variant: "destructive"
       });
     } finally {
       setIsGeneratingNotes(false);
@@ -245,7 +240,6 @@ const Record = () => {
       const data = await response.json();
       
       if (data.needs_auth) {
-        // Get auth URL
         const authResponse = await fetch('http://localhost:5000/auth/google', {
           credentials: 'include',
         });
@@ -266,6 +260,7 @@ const Record = () => {
       toast({
         title: "Failed to push to Google Docs",
         description: "Please try again",
+        variant: "destructive"
       });
     }
   };
@@ -283,8 +278,9 @@ const Record = () => {
       <DashboardSidebar />
       
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Changed title from "Record" to empty string */}
         <DashboardHeader 
-          title="Record" 
+          title="" 
           subtitle="Start recording your lecture"
         />
         
@@ -314,29 +310,28 @@ const Record = () => {
                   disabled={isProcessing}
                   className={`relative z-10 w-32 h-32 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
                     isRecording 
-                      ? "bg-red-500 hover:bg-red-600 shadow-red-500/25" 
+                      ? "bg-destructive hover:bg-destructive/90 shadow-destructive/25" 
                       : "bg-primary hover:bg-primary/90 shadow-primary/25"
                   }`}
                 >
                   {isRecording ? (
-                    <Square className="w-12 h-12 text-white fill-current" />
+                    <Square className="w-12 h-12 text-primary-foreground fill-current" />
                   ) : (
-                    <Mic className="w-12 h-12 text-white" />
+                    <Mic className="w-12 h-12 text-primary-foreground" />
                   )}
                 </button>
               </div>
 
-              {/* Mic Level Indicator */}
               {isRecording && (
-                <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden mx-auto">
+                <div className="w-64 h-2 bg-secondary rounded-full overflow-hidden mx-auto">
                     <div 
-                        className={`h-full transition-all duration-100 ${micLevel > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                        className={`h-full transition-all duration-100 ${micLevel > 0 ? 'bg-green-500' : 'bg-destructive'}`}
                         style={{ width: `${Math.min(100, (micLevel / 255) * 300)}%` }}
                     />
                 </div>
               )}
               {isRecording && micLevel === 0 && (
-                  <p className="text-red-500 text-sm font-bold animate-pulse">
+                  <p className="text-destructive text-sm font-bold animate-pulse">
                       No audio detected! Check your microphone.
                   </p>
               )}
@@ -361,7 +356,7 @@ const Record = () => {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-secondary/30 border border-border rounded-2xl p-6 space-y-4"
+                className="bg-card border border-border rounded-2xl p-6 space-y-4"
               >
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold text-foreground">Transcript</h3>
@@ -395,7 +390,7 @@ const Record = () => {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-secondary/30 border border-border rounded-2xl p-6 space-y-4"
+                className="bg-card border border-border rounded-2xl p-6 space-y-4"
               >
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold text-foreground">AI Generated Notes</h3>
@@ -422,7 +417,7 @@ const Record = () => {
                     </Button>
                   </div>
                 </div>
-                <div className="prose prose-sm max-w-none dark:prose-invert">
+                <div className="prose prose-sm max-w-none dark:prose-invert text-foreground">
                   <ReactMarkdown>{notes}</ReactMarkdown>
                 </div>
               </motion.div>

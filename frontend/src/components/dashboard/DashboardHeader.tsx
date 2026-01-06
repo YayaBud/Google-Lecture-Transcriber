@@ -15,13 +15,15 @@ interface DashboardHeaderProps {
   subtitle: string;
   onSearch?: (query: string) => void;
   searchPlaceholder?: string;
+  showSearch?: boolean;
 }
 
 const DashboardHeader = ({ 
   title, 
   subtitle, 
   onSearch,
-  searchPlaceholder = "Search notes..." 
+  searchPlaceholder = "Search notes...",
+  showSearch = false
 }: DashboardHeaderProps) => {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,21 +55,30 @@ const DashboardHeader = ({
 
   return (
     <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
-      <div className="flex items-center justify-between p-6">
-        <div className="flex-1 max-w-2xl">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder={searchPlaceholder}
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="pl-10 bg-card/50 border-border/50 focus:border-primary transition-colors"
-            />
-          </div>
+      <div className="flex items-center justify-between gap-4 p-6">
+        {/* Left side - Title or Search */}
+        <div className="flex-1 min-w-0">
+          {showSearch ? (
+            <div className="relative max-w-2xl">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder={searchPlaceholder}
+                value={searchQuery}
+                onChange={handleSearchChange}
+                className="pl-10 bg-card/50 border-border/50 focus:border-primary transition-colors"
+              />
+            </div>
+          ) : (
+            <div>
+              <h1 className="text-2xl font-bold text-foreground truncate">{title}</h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">{subtitle}</p>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 ml-4">
+        {/* Right side - Theme toggle & Notifications */}
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="ghost"
             size="icon"

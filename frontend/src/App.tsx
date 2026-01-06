@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import AllNotes from "./pages/AllNotes";
 import FavoriteNotes from "./pages/FavoriteNotes";
 import Record from "./pages/Record";
+import FolderDetail from "./pages/FolderDetail";
 import Folders from "./pages/Folders";
 import Help from "./pages/Help";
 import Login from "./pages/Login";
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/dashboard/notes" element={<AllNotes />} />
             <Route path="/dashboard/record" element={<Record />} />
             <Route path="/dashboard/favorites" element={<FavoriteNotes />} />
+            <Route path="/dashboard/folders/:folderId" element={<FolderDetail />} />
             <Route path="/dashboard/folders" element={<Folders />} />
             <Route path="/dashboard/settings" element={<Settings />} />
             <Route path="/dashboard/help" element={<Help />} />
