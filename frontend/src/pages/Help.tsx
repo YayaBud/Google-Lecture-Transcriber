@@ -1,7 +1,13 @@
-import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import DashboardSidebar from "../components/dashboard/DashboardSidebar";
+import DashboardHeader from "../components/dashboard/DashboardHeader";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../components/ui/accordion";
+
 
 const faqs = [
   {

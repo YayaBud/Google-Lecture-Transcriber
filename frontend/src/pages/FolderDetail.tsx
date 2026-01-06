@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import NoteCard from "@/components/dashboard/NoteCard";
-import { Button } from "@/components/ui/button";
+import DashboardSidebar from "../components/dashboard/DashboardSidebar";
+import DashboardHeader from "../components/dashboard/DashboardHeader";
+import NoteCard from "../components/dashboard/NoteCard";
+import { Button } from "../components/ui/button";
 import { ArrowLeft, FolderOpen } from "lucide-react";
 import { motion } from "framer-motion";
+
 
 
 interface Note {

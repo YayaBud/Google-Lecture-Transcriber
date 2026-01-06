@@ -1,25 +1,25 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import DashboardSidebar from "../components/dashboard/DashboardSidebar";
+import DashboardHeader from "../components/dashboard/DashboardHeader";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { FolderOpen, Search, Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "../hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "../components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "../components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +29,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "../components/ui/alert-dialog";
+
 
 interface Folder {
   id: string;

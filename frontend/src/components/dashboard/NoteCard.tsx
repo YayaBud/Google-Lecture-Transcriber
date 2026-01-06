@@ -1,21 +1,20 @@
 import { Star, Clock, Calendar, MoreVertical, Pencil, Trash2, Download } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "../ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "../ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-
+} from "../ui/dialog";
+import { Input } from "../ui/input";
 
 interface NoteCardProps {
   id: string;

@@ -1,23 +1,23 @@
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Mic, 
-  Star, 
-  FolderOpen, 
+import {
+  LayoutDashboard,
+  FileText,
+  Mic,
+  Star,
+  FolderOpen,
   Settings,
   HelpCircle,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
 } from "lucide-react";
-import { NavLink } from "@/components/NavLink";
-import { Button } from "@/components/ui/button";
+import { NavLink } from "../NavLink";
+import { Button } from "../ui/button";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "../../hooks/use-toast";
 
 const mainNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },

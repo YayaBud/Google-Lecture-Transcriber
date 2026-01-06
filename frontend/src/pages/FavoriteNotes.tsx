@@ -1,11 +1,12 @@
-import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import NoteCard from "@/components/dashboard/NoteCard";
-import { Button } from "@/components/ui/button";
+import DashboardSidebar from "../components/dashboard/DashboardSidebar";
+import DashboardHeader from "../components/dashboard/DashboardHeader";
+import NoteCard from "../components/dashboard/NoteCard";
+import { Button } from "../components/ui/button";
 import { Plus, Grid3X3, List } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "../hooks/use-toast";
+
 
 interface Note {
   id: string;

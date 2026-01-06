@@ -1,10 +1,11 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { Link, useNavigate } from "react-router-dom";
 import { Mic, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "../hooks/use-toast";
+
 
 const Login = () => {
   const navigate = useNavigate();

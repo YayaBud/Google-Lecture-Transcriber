@@ -1,14 +1,15 @@
-import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import StatsCard from "@/components/dashboard/StatsCard";
-import NoteCard from "@/components/dashboard/NoteCard";
-import { Button } from "@/components/ui/button";
+import DashboardSidebar from "../components/dashboard/DashboardSidebar";
+import DashboardHeader from "../components/dashboard/DashboardHeader";
+import StatsCard from "../components/dashboard/StatsCard";
+import NoteCard from "../components/dashboard/NoteCard";
+import { Button } from "../components/ui/button";
 import { motion, Variants } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "../hooks/use-toast";
 import { FileText, Clock, Star, FolderOpen, Mic, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Input } from "../components/ui/input";
+
 
 interface Note {
   id: string;

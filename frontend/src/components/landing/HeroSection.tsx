@@ -1,7 +1,8 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "../ui/button";
 import { ArrowRight, Sparkles, Mic, Brain, Zap, Shield } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion, Variants } from "framer-motion";
+
 
 const container: Variants = {
   hidden: { opacity: 0 },

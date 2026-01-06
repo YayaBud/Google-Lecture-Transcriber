@@ -1,11 +1,12 @@
-import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import DashboardSidebar from "../components/dashboard/DashboardSidebar";
+import DashboardHeader from "../components/dashboard/DashboardHeader";
 import { Mic, Square, Download, FileText, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import ReactMarkdown from 'react-markdown';
+import { Button } from "../components/ui/button";
+import { useToast } from "../hooks/use-toast";
+import ReactMarkdown from "react-markdown";
+
 
 const Record = () => {
   const [isRecording, setIsRecording] = useState(false);

@@ -1,30 +1,30 @@
-import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
+import DashboardSidebar from "../components/dashboard/DashboardSidebar";
 import { motion, AnimatePresence } from "framer-motion";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import NoteCard from "@/components/dashboard/NoteCard";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Plus, 
-  Grid3X3, 
-  List, 
-  Star, 
-  MoreVertical, 
-  Pencil, 
+import DashboardHeader from "../components/dashboard/DashboardHeader";
+import NoteCard from "../components/dashboard/NoteCard";
+import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
+import {
+  Plus,
+  Grid3X3,
+  List,
+  Star,
+  MoreVertical,
+  Pencil,
   Trash2,
   CheckSquare,
-  X
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { useToast } from "../hooks/use-toast";
+import { cn } from "../lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "../components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +34,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "../components/ui/alert-dialog";
+
 
 interface Note {
   id: string;

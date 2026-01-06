@@ -1,8 +1,8 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "../ui/button";
 import { Mic, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "../ThemeToggle";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);

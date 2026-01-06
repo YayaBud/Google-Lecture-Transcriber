@@ -1,14 +1,15 @@
 import { Search, Moon, Sun, Bell } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
+} from "../ui/dropdown-menu";
+import { Badge } from "../ui/badge";
+
 
 interface DashboardHeaderProps {
   title: string;
