@@ -1,5 +1,8 @@
 {
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/:path((?!assets|favicon\\.ico).*)",
+      "destination": "/index.html"
+    }
   ]
 }
