@@ -103,7 +103,7 @@ cd backend
 python app.py
 
 ```
-###2️⃣ Frontend Setup
+2️⃣ Frontend Setup
 ```bash
 cd frontend
 npm install
