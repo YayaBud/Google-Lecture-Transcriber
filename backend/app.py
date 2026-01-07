@@ -43,6 +43,7 @@ from google import genai
 # ✅ FIXED: Gemini setup
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+print(f"🔑 Using Gemini API Key: {os.getenv('GEMINI_API_KEY')[:20]}...")
 
 # allow HTTP for local OAuth redirects
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
