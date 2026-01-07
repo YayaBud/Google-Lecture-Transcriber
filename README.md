@@ -169,3 +169,29 @@ npm install
 ```
 NoteFlow uses a modern **microservices architecture** with clear separation of concerns:
 
+### 2️⃣ Environment Configuration
+
+#### Backend Configuration
+
+Create `backend/.env`:
+
+```env
+# MongoDB Configuration
+MONGODB_URL=mongodb+srv://<db_username>:<db_password>@cluster0.xxxxx.mongodb.net/
+MONGODB_USER_ID=your_mongodb_username
+MONGODB_PASSWORD=your_mongodb_password
+
+# Google AI APIs
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.0-flash
+
+# Google Cloud Speech-to-Text
+GOOGLE_APPLICATION_CREDENTIALS=google-speech-credentials.json
+
+# Whisper Configuration
+WHISPER_MODEL=small
+
+# Flask Configuration
+SECRET_KEY=your-secret-key-generate-random-string
+FLASK_ENV=development
+```
