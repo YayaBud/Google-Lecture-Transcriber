@@ -183,7 +183,7 @@ MONGODB_PASSWORD=your_mongodb_password
 
 # Google AI APIs
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-2.5-flash
 
 # Google Cloud Speech-to-Text
 GOOGLE_APPLICATION_CREDENTIALS=google-speech-credentials.json
@@ -194,4 +194,63 @@ WHISPER_MODEL=small
 # Flask Configuration
 SECRET_KEY=your-secret-key-generate-random-string
 FLASK_ENV=development
+```
+#### Google Cloud Setup
+
+**1. Create Google Cloud Project**
+- Go to: https://console.cloud.google.com/
+- Click "New Project" → Name it `noteflow` or `google-transcriber`
+- Note your Project ID
+
+**2. Enable Required APIs**
+
+Navigate to: https://console.cloud.google.com/apis/library
+
+Enable these APIs:
+- ✅ **Cloud Speech-to-Text API**
+- ✅ **Google Docs API**
+- ✅ **Google Drive API**
+- ✅ **Google OAuth 2.0 API** (enabled by default)
+
+**3. Get Gemini API Key**
+- Go to: https://aistudio.google.com/app/apikey
+- Click "Create API Key"
+- Copy the key → Add to `backend/.env` as `GEMINI_API_KEY`
+
+**4. Create OAuth 2.0 Credentials**
+- Go to: https://console.cloud.google.com/apis/credentials
+- Click "Create Credentials" → "OAuth 2.0 Client ID"
+- **Application type**: Web application
+- **Name**: `NoteFlow Web Client`
+- **Authorized redirect URIs**:
+  - `http://localhost:5000/auth/google/callback`
+  - `http://localhost:5000/oauth2callback`
+- Click "Create"
+- **Download JSON** → Rename to `credentials_oauth.json`
+- Place in `backend/` folder
+
+**5. Create Service Account for Speech-to-Text**
+- Go to: https://console.cloud.google.com/iam-admin/serviceaccounts
+- Click "Create Service Account"
+- **Name**: `speech-transcriber`
+- **Description**: "Service account for Speech-to-Text API"
+- Click "Create and Continue"
+- **Grant role**: `Cloud Speech Client`
+- Click "Continue" → "Done"
+- Click on the service account you just created
+- Go to **Keys** tab → "Add Key" → "Create new key" → **JSON**
+- **Download JSON** → Rename to `google-speech-credentials.json`
+- Place in `backend/` folder
+
+**6. Enable Billing (Required for Speech-to-Text)**
+- Go to: https://console.cloud.google.com/billing
+- Link a billing account (you get **$300 free credits** for new accounts)
+- Set budget alerts at $5, $10, $20 for safety
+
+#### Frontend Configuration
+
+Create `frontend/.env`:
+
+```env
+VITE_API_URL=http://localhost:5000
 ```
