@@ -39,11 +39,16 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google import genai
+from google.cloud import speech
 
-# ✅ FIXED: Gemini setup
+# ✅ Gemini setup
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 print(f"🔑 Using Gemini API Key: {os.getenv('GEMINI_API_KEY')[:20]}...")
+
+# ✅ Google Speech-to-Text setup
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'google-speech-credentials.json'
+print(f"✅ Google Speech-to-Text credentials loaded")
 
 # allow HTTP for local OAuth redirects
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -120,7 +125,7 @@ if not ffmpeg_path:
 else:
     print(f"ffmpeg found at: {ffmpeg_path}")
 
-# ✅ FIXED: Gemini generation function
+# ✅ Gemini generation function
 def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
     """Generate text using Gemini API."""
     try:
@@ -132,6 +137,61 @@ def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
     except Exception as e:
         print(f"Gemini API error: {e}")
         raise
+
+# ✅ Google Speech-to-Text function
+def transcribe_with_google_speech(audio_path: str):
+    """Transcribe audio using Google Speech-to-Text API"""
+    try:
+        client = speech.SpeechClient()
+        
+        # Read audio file
+        with open(audio_path, 'rb') as audio_file:
+            content = audio_file.read()
+        
+        audio = speech.RecognitionAudio(content=content)
+        
+        # Detect format from extension
+        ext = os.path.splitext(audio_path)[1].lower()
+        
+        if ext in ['.webm', '.opus']:
+            encoding = speech.RecognitionConfig.AudioEncoding.WEBM_OPUS
+            sample_rate = 48000
+        elif ext in ['.mp3']:
+            encoding = speech.RecognitionConfig.AudioEncoding.MP3
+            sample_rate = 48000
+        elif ext in ['.wav']:
+            encoding = speech.RecognitionConfig.AudioEncoding.LINEAR16
+            sample_rate = 16000
+        else:
+            encoding = speech.RecognitionConfig.AudioEncoding.WEBM_OPUS
+            sample_rate = 48000
+        
+        config = speech.RecognitionConfig(
+            encoding=encoding,
+            sample_rate_hertz=sample_rate,
+            language_code='en-US',
+            enable_automatic_punctuation=True,
+            model='latest_long',
+            use_enhanced=True,
+        )
+        
+        print(f"🎤 Transcribing with Google Speech-to-Text...")
+        response = client.recognize(config=config, audio=audio)
+        
+        transcript = ' '.join([
+            result.alternatives[0].transcript 
+            for result in response.results
+        ])
+        
+        if response.results and response.results[0].alternatives:
+            confidence = response.results[0].alternatives[0].confidence
+            print(f"✅ Google Speech confidence: {confidence:.2%}")
+        
+        return transcript, 'en-US'
+        
+    except Exception as e:
+        print(f"❌ Google Speech error: {e}")
+        return None, None
 
 # Audio processing helpers
 def reduce_noise_np(audio: np.ndarray, reduction_factor: float = 0.01) -> np.ndarray:
@@ -340,14 +400,15 @@ def logout():
 @app.route('/transcribe', methods=['POST'])
 @login_required
 def transcribe_audio():
-    """Transcribe audio using faster-whisper"""
-    if model is None:
-        return jsonify({'error': 'Whisper model not loaded'}), 500
-
+    """Transcribe audio using Google Speech-to-Text or Whisper"""
+    
     try:
         if 'audio' not in request.files:
             return jsonify({'error': 'No audio file provided'}), 400
 
+        # Get method from request (default: whisper for free usage)
+        method = request.form.get('method', 'whisper')
+        
         audio_file = request.files['audio']
         ts = int(time.time())
         
@@ -371,25 +432,41 @@ def transcribe_audio():
         shutil.copy(temp_path, debug_orig_path)
         
         start_time = time.time()
-
-        print(f"🎤 Starting transcription with {WHISPER_MODEL}...")
-        segments, info = model.transcribe(
-            temp_path,
-            language=None,
-            task='translate',
-            beam_size=5,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500),
-            temperature=0.0,
-            condition_on_previous_text=False,
-        )
-
-        transcript = ' '.join([segment.text.strip() for segment in segments])
-        transcript = transcript.replace(' um ', ' ').replace(' uh ', ' ').strip()
+        transcript = None
+        language = 'en'
+        
+        # Try Google Speech if requested
+        if method == 'google':
+            print(f"🎤 Using Google Speech-to-Text...")
+            transcript, language = transcribe_with_google_speech(temp_path)
+            
+            if not transcript:
+                print("⚠️ Google Speech failed, falling back to Whisper...")
+                method = 'whisper'
+        
+        # Use Whisper as fallback or default
+        if method == 'whisper' or not transcript:
+            if model is None:
+                return jsonify({'error': 'Whisper model not loaded'}), 500
+                
+            print(f"🎤 Using Whisper (local)...")
+            segments, info = model.transcribe(
+                temp_path,
+                language=None,
+                task='translate',
+                beam_size=5,
+                vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=500),
+                temperature=0.0,
+                condition_on_previous_text=False,
+            )
+            transcript = ' '.join([segment.text.strip() for segment in segments])
+            transcript = transcript.replace(' um ', ' ').replace(' uh ', ' ').strip()
+            language = info.language
+            method = 'whisper'
         
         elapsed_time = time.time() - start_time
-        print(f"✅ Transcription completed in {elapsed_time:.2f}s")
-        print(f"📊 Language: {info.language} (prob: {info.language_probability:.2f})")
+        print(f"✅ Transcription completed in {elapsed_time:.2f}s using {method}")
 
         try:
             os.unlink(temp_path)
@@ -401,7 +478,8 @@ def transcribe_audio():
             'success': True,
             'length': len(transcript),
             'duration': f"{elapsed_time:.2f}s",
-            'language': info.language
+            'language': language,
+            'method': method
         })
 
     except Exception as e:
