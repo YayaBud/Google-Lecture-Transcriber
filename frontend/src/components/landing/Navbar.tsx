@@ -22,14 +22,17 @@ const Navbar = () => {
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors font-medium">
-              Features
+            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors font-medium relative group">
+              <span className="group-hover:scale-105 group-hover:-translate-y-0.5 transition-all duration-200 inline-block">Features</span>
+              <span className="absolute left-0 -bottom-1 w-full h-0.5 bg-primary scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
             </a>
-            <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors font-medium">
-              How it Works
+            <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors font-medium relative group">
+              <span className="group-hover:scale-105 group-hover:-translate-y-0.5 transition-all duration-200 inline-block">How it Works</span>
+              <span className="absolute left-0 -bottom-1 w-full h-0.5 bg-primary scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
             </a>
-            <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors font-medium">
-              Pricing
+            <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors font-medium relative group">
+              <span className="group-hover:scale-105 group-hover:-translate-y-0.5 transition-all duration-200 inline-block">Pricing</span>
+              <span className="absolute left-0 -bottom-1 w-full h-0.5 bg-primary scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
             </a>
           </div>
 

@@ -45,13 +45,15 @@ const HowItWorksSection = () => {
             {steps.map((step, index) => (
               <div
                 key={step.title}
-                className="relative text-center"
+                className="relative text-center transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1"
               >
                 {/* Step number */}
                 <div className="relative inline-flex mb-6">
-                  <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center shadow-soft">
-                    <step.icon className="w-8 h-8 text-primary-foreground" />
-                  </div>
+                    <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center shadow-soft transition-transform duration-300 group-hover:scale-110 group-hover:shadow-lg">
+                      <step.icon
+                        className="w-8 h-8 text-white"
+                      />
+                    </div>
                   <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-card border-2 border-primary flex items-center justify-center">
                     <span className="text-sm font-bold text-primary">{index + 1}</span>
                   </div>

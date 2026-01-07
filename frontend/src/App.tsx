@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useEffect } from "react";
+import { useScrollEffects } from "./hooks/useScrollEffects";
 
 const queryClient = new QueryClient();
 
@@ -30,34 +31,37 @@ const ThemeInitializer = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <ThemeInitializer />
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          
-          {/* Protected Routes */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/notes" element={<AllNotes />} />
-            <Route path="/dashboard/record" element={<Record />} />
-            <Route path="/dashboard/favorites" element={<FavoriteNotes />} />
-            <Route path="/dashboard/folders/:folderId" element={<FolderDetail />} />
-            <Route path="/dashboard/folders" element={<Folders />} />
-            <Route path="/dashboard/settings" element={<Settings />} />
-            <Route path="/dashboard/help" element={<Help />} />
-          </Route>
-
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  (() => {
+    useScrollEffects();
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ThemeInitializer />
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              {/* Protected Routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard/notes" element={<AllNotes />} />
+                <Route path="/dashboard/record" element={<Record />} />
+                <Route path="/dashboard/favorites" element={<FavoriteNotes />} />
+                <Route path="/dashboard/folders/:folderId" element={<FolderDetail />} />
+                <Route path="/dashboard/folders" element={<Folders />} />
+                <Route path="/dashboard/settings" element={<Settings />} />
+                <Route path="/dashboard/help" element={<Help />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  })()
 );
 
 export default App;

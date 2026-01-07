@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 
 const CTASection = () => {
   return (
-    <section className="py-24 bg-background relative overflow-hidden">
+    <section className="py-24 bg-black relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-3xl" />
@@ -29,7 +29,7 @@ const CTASection = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button variant="default" size="lg" asChild className="px-8 py-6 text-lg">
+            <Button variant="default" size="lg" asChild className="px-8 py-6 text-lg transition-all duration-300 hover:scale-105 hover:shadow-2xl">
               <Link to="/dashboard">
                 Get Started Free
                 <ArrowRight className="w-5 h-5" />
