@@ -101,3 +101,14 @@ NoteFlow follows a clean **frontend–backend separation**:
 cd backend
 # Follow instructions in backend/README.md
 python app.py
+
+```
+###2️⃣ Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
+```
+The application will be available at:
+### http://localhost:5173
+
