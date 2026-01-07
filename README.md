@@ -58,23 +58,55 @@ Generate beautifully formatted PDFs with custom styling for offline study or pri
 
 ## 🏗️ Architecture
 
-┌─────────────────────────────────────────────────────────┐
-│ Frontend (React) │
-│ - Audio Recording - Dashboard - Note Editor │
-└────────────────────┬────────────────────────────────────┘
-│ REST API
-┌────────────────────▼────────────────────────────────────┐
-│ Backend (Flask) │
-│ - Authentication - Audio Processing - AI Orchestration│
-└─┬──────────┬──────────┬──────────────┬─────────────────┘
-│ │ │ │
-▼ ▼ ▼ ▼
-┌──────┐ ┌──────┐ ┌─────────┐ ┌──────────────┐
-│MongoDB│ │Whisper│ │ Gemini │ │ Google APIs │
-│ DB │ │ STT │ │ AI │ │ (Docs/OAuth) │
-└──────┘ └──────┘ └─────────┘ └──────────────┘
+## 🏗️ Architecture
 
-
+```mermaid
+graph TB
+    subgraph Frontend["🖥️ Frontend (React + TypeScript)"]
+        UI[Dashboard & Note Editor]
+        Record[Audio Recording]
+    end
+    
+    subgraph Backend["⚙️ Backend (Flask)"]
+        Auth[Authentication]
+        Audio[Audio Processing]
+        API[REST API]
+    end
+    
+    subgraph AI["🤖 AI Services"]
+        Whisper[OpenAI Whisper<br/>Speech-to-Text]
+        GoogleSTT[Google Speech-to-Text<br/>Cloud Transcription]
+        Gemini[Google Gemini 2.0<br/>Note Generation]
+    end
+    
+    subgraph Data["💾 Data Layer"]
+        MongoDB[(MongoDB Atlas<br/>User & Notes)]
+    end
+    
+    subgraph Google["☁️ Google Cloud"]
+        OAuth[OAuth 2.0<br/>Authentication]
+        Docs[Google Docs API<br/>Export]
+        Drive[Google Drive<br/>Storage]
+    end
+    
+    UI --> API
+    Record --> API
+    API --> Auth
+    API --> Audio
+    Audio --> Whisper
+    Audio --> GoogleSTT
+    API --> Gemini
+    Auth --> OAuth
+    API --> MongoDB
+    API --> Docs
+    Docs --> Drive
+    
+    style Frontend fill:#61DAFB20,stroke:#61DAFB
+    style Backend fill:#00000020,stroke:#000000
+    style AI fill:#FF6B6B20,stroke:#FF6B6B
+    style Data fill:#47A24820,stroke:#47A248
+    style Google fill:#4285F420,stroke:#4285F4
+```
 ---
 
 ## 🛠️ Tech Stack
