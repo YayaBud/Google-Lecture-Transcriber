@@ -34,11 +34,15 @@ import shutil
 import wave
 import struct
 import numpy as np
-import io
 import requests
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from google import genai
+
+# ✅ FIXED: Gemini setup
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # allow HTTP for local OAuth redirects
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -66,7 +70,7 @@ print(f"Connecting to MongoDB with URI: {masked_uri}")
 try:
     mongo_client = MongoClient(
         MONGO_URI, 
-        serverSelectionTimeoutMS=5000,
+        serverSelectionTimeoutMS=10000,
         tls=True,
         tlsAllowInvalidCertificates=True  
     )
@@ -115,80 +119,18 @@ if not ffmpeg_path:
 else:
     print(f"ffmpeg found at: {ffmpeg_path}")
 
-# Ollama setup
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'gemma2:2b')
-OLLAMA_CLI = 'ollama'
-user_ollama = os.path.expanduser(r"~\AppData\Local\Programs\Ollama\ollama.exe")
-if os.path.exists(user_ollama):
-    OLLAMA_CLI = user_ollama
-elif shutil.which('ollama.exe'):
-    OLLAMA_CLI = shutil.which('ollama.exe')
-elif shutil.which('ollama'):
-    OLLAMA_CLI = shutil.which('ollama')
-
-print(f"Using Ollama CLI: {OLLAMA_CLI}")
-print(f"Using Ollama model: {OLLAMA_MODEL}")
-
-def ensure_ollama_model():
-    global OLLAMA_MODEL
+# ✅ FIXED: Gemini generation function
+def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
+    """Generate text using Gemini API."""
     try:
-        print(f"Checking for Ollama model: {OLLAMA_MODEL}...")
-        proc = subprocess.run([OLLAMA_CLI, 'list'], capture_output=True, text=True)
-        if proc.returncode == 0:
-            if OLLAMA_MODEL not in proc.stdout:
-                print(f"Attempting to pull {OLLAMA_MODEL}...")
-                subprocess.run([OLLAMA_CLI, 'pull', OLLAMA_MODEL], check=True)
-                print(f"Successfully pulled {OLLAMA_MODEL}")
-            else:
-                print(f"Model {OLLAMA_MODEL} found.")
-    except Exception as e:
-        print(f"Error checking/pulling Ollama model: {e}")
-
-ensure_ollama_model()
-
-def generate_with_ollama(prompt: str, timeout: int = 120) -> str:
-    """Generate text using local Ollama model."""
-    
-    # Try CLI first
-    try:
-        proc = subprocess.run(
-            [OLLAMA_CLI, 'run', OLLAMA_MODEL], 
-            input=prompt,
-            capture_output=True, 
-            text=True, 
-            timeout=timeout
+        response = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt
         )
-        if proc.returncode == 0 and proc.stdout.strip():
-            return proc.stdout.strip()
-        else:
-            print(f"Ollama CLI failed with return code {proc.returncode}")
-            print(f"stderr: {proc.stderr}")
+        return response.text.strip()
     except Exception as e:
-        print(f"Ollama CLI generate failed: {e}")
-
-    # Fallback to HTTP API
-    try:
-        ollama_url = 'http://localhost:11434'
-        
-        payload = {
-            "model": OLLAMA_MODEL, 
-            "prompt": prompt, 
-            "stream": False
-        }
-        
-        print(f"Trying Ollama HTTP API at {ollama_url}")
-        resp = requests.post(f"{ollama_url}/api/generate", json=payload, timeout=timeout)
-        resp.raise_for_status()
-        
-        j = resp.json()
-        if isinstance(j, dict):
-            response_text = j.get('response') or j.get('text') or str(j)
-            return response_text
-        return resp.text
-        
-    except Exception as e:
-        print(f"Ollama HTTP API failed: {e}")
-        raise Exception(f"Ollama generation failed (CLI+HTTP): {e}")
+        print(f"Gemini API error: {e}")
+        raise
 
 # Audio processing helpers
 def reduce_noise_np(audio: np.ndarray, reduction_factor: float = 0.01) -> np.ndarray:
@@ -297,13 +239,12 @@ LOGIN_SCOPES = [
 ]
 CLIENT_SECRET_FILE = 'credentials_oauth.json'
 
-# ✅ FIXED: Google OAuth Login Route
 @app.route('/auth/google/login')
 def google_login():
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRET_FILE,
         scopes=LOGIN_SCOPES,
-        redirect_uri='http://localhost:5000/auth/google/callback'  # Fixed to match callback
+        redirect_uri='http://localhost:5000/auth/google/callback'
     )
     authorization_url, state = flow.authorization_url(
         access_type='offline',
@@ -312,7 +253,6 @@ def google_login():
     session['state'] = state
     return redirect(authorization_url)
 
-# ✅ FIXED: Correct callback route name
 @app.route('/auth/google/callback')
 def google_login_callback():
     try:
@@ -325,7 +265,7 @@ def google_login_callback():
             CLIENT_SECRET_FILE,
             scopes=LOGIN_SCOPES,
             state=state,
-            redirect_uri='http://localhost:5000/auth/google/callback'  # Must match exactly
+            redirect_uri='http://localhost:5000/auth/google/callback'
         )
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
@@ -399,7 +339,7 @@ def logout():
 @app.route('/transcribe', methods=['POST'])
 @login_required
 def transcribe_audio():
-    """Transcribe audio using faster-whisper with GPU acceleration"""
+    """Transcribe audio using faster-whisper"""
     if model is None:
         return jsonify({'error': 'Whisper model not loaded'}), 500
 
@@ -477,8 +417,7 @@ def generate_notes():
         if not transcript:
             return jsonify({'error': 'No transcript provided'}), 400
         
-        prompt = f"""<start_of_turn>user
-You are an expert note-taker. Analyze the following lecture transcript and create structured, easy-to-read notes.
+        prompt = f"""You are an expert note-taker. Analyze the following lecture transcript and create structured, easy-to-read notes.
 
 TRANSCRIPT:
 {transcript}
@@ -501,12 +440,10 @@ OUTPUT FORMAT:
 
 ### Summary
 [Summary text]
-<end_of_turn>
-<start_of_turn>model
 """
         
         print(f"Generating notes for transcript of length {len(transcript)}")
-        notes = generate_with_ollama(prompt)
+        notes = generate_with_gemini(prompt)
         print(f"Notes generated successfully!")
         
         note_id = notes_collection.insert_one({
@@ -675,7 +612,7 @@ def toggle_favorite(note_id):
         return jsonify({'success': True, 'is_favorite': new_status})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
+
 @app.route('/notes/<note_id>/export-pdf', methods=['GET'])
 @login_required
 def export_pdf(note_id):
@@ -800,7 +737,7 @@ def export_pdf(note_id):
     except Exception as e:
         print(f"Error exporting PDF: {e}")
         return jsonify({'error': str(e)}), 500
-          
+
 @app.route('/folders', methods=['GET'])
 @login_required
 def get_folders():
@@ -871,18 +808,13 @@ def add_notes_to_folder(folder_id):
         if not note_ids:
             return jsonify({"error": "No notes provided"}), 400
         
-        # Verify folder belongs to user
         folder = db.folders.find_one({"_id": ObjectId(folder_id), "user_id": user_id})
         if not folder:
             return jsonify({"error": "Folder not found"}), 404
         
-        # Get current note_ids or empty list
         current_note_ids = folder.get('note_ids', [])
-        
-        # Add new note_ids (avoid duplicates)
         updated_note_ids = list(set(current_note_ids + note_ids))
         
-        # Update folder
         db.folders.update_one(
             {"_id": ObjectId(folder_id)},
             {"$set": {"note_ids": updated_note_ids}}
@@ -913,7 +845,7 @@ def create_folder():
             'user_id': userid,
             'name': name,
             'note_ids': note_ids,
-            'created_at': time.time()  # ✅ MAKE SURE THIS IS HERE
+            'created_at': time.time()
         }
         
         result = db.folders.insert_one(folder_doc)
