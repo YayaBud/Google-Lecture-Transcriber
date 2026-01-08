@@ -36,6 +36,8 @@ import {
   AlertDialogTitle,
 } from "../components/ui/alert-dialog";
 
+// ✅ ADD THIS LINE
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Note {
   id: string;
@@ -61,7 +63,8 @@ const AllNotes = () => {
 
   const fetchNotes = async () => {
     try {
-      const response = await fetch('http://localhost:5000/notes', {
+      // ✅ UPDATED
+      const response = await fetch(`${API_URL}/notes`, {
         credentials: 'include'
       });
       if (response.status === 401) {
@@ -124,7 +127,8 @@ const AllNotes = () => {
   const bulkDeleteNotes = async () => {
     try {
       const deletePromises = Array.from(selectedNotes).map(noteId =>
-        fetch(`http://localhost:5000/notes/${noteId}`, {
+        // ✅ UPDATED
+        fetch(`${API_URL}/notes/${noteId}`, {
           method: 'DELETE',
           credentials: 'include'
         })
@@ -152,7 +156,8 @@ const AllNotes = () => {
 
   const handleToggleFavorite = async (noteId: string) => {
     try {
-      await fetch(`http://localhost:5000/notes/${noteId}/favorite`, {
+      // ✅ UPDATED
+      await fetch(`${API_URL}/notes/${noteId}/favorite`, {
         method: 'POST',
         credentials: 'include'
       });
@@ -164,7 +169,8 @@ const AllNotes = () => {
 
   const handleRename = async (noteId: string, newTitle: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/notes/${noteId}`, {
+      // ✅ UPDATED
+      const response = await fetch(`${API_URL}/notes/${noteId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -189,7 +195,8 @@ const AllNotes = () => {
 
   const handleDelete = async (noteId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/notes/${noteId}`, {
+      // ✅ UPDATED
+      const response = await fetch(`${API_URL}/notes/${noteId}`, {
         method: 'DELETE',
         credentials: 'include'
       });

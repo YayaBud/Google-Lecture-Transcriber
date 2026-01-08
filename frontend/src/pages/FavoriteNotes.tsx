@@ -2,11 +2,12 @@ import DashboardSidebar from "../components/dashboard/DashboardSidebar";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import NoteCard from "../components/dashboard/NoteCard";
 import { Button } from "../components/ui/button";
-import { Plus, Grid3X3, List } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../hooks/use-toast";
 
+// ✅ ADD THIS LINE
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Note {
   id: string;
@@ -21,13 +22,12 @@ const FavoriteNotes = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [notes, setNotes] = useState<Note[]>([]);
-  const [filteredNotes, setFilteredNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchNotes = async () => {
     try {
-      const response = await fetch('http://localhost:5000/notes', {
+      // ✅ UPDATED
+      const response = await fetch(`${API_URL}/notes`, {
         credentials: 'include'
       });
       if (response.status === 401) {
@@ -36,9 +36,9 @@ const FavoriteNotes = () => {
       }
       const data = await response.json();
       if (data.success) {
+        // Filter only favorite notes
         const favoriteNotes = data.notes.filter((note: Note) => note.is_favorite);
         setNotes(favoriteNotes);
-        setFilteredNotes(favoriteNotes);
       }
     } catch (error) {
       console.error("Failed to fetch notes", error);
@@ -51,22 +51,10 @@ const FavoriteNotes = () => {
     fetchNotes();
   }, [navigate]);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (!query.trim()) {
-      setFilteredNotes(notes);
-    } else {
-      const filtered = notes.filter(note =>
-        note.title.toLowerCase().includes(query.toLowerCase()) ||
-        note.preview.toLowerCase().includes(query.toLowerCase())
-      );
-      setFilteredNotes(filtered);
-    }
-  };
-
   const handleToggleFavorite = async (noteId: string) => {
     try {
-      await fetch(`http://localhost:5000/notes/${noteId}/favorite`, {
+      // ✅ UPDATED
+      await fetch(`${API_URL}/notes/${noteId}/favorite`, {
         method: 'POST',
         credentials: 'include'
       });
@@ -78,7 +66,8 @@ const FavoriteNotes = () => {
 
   const handleRename = async (noteId: string, newTitle: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/notes/${noteId}`, {
+      // ✅ UPDATED
+      const response = await fetch(`${API_URL}/notes/${noteId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -86,27 +75,42 @@ const FavoriteNotes = () => {
       });
       
       if (response.ok) {
-        toast({ title: "Note renamed", description: "Your note has been renamed successfully." });
+        toast({ 
+          title: "Note renamed", 
+          description: "Your note has been renamed successfully." 
+        });
         fetchNotes();
       }
     } catch (error) {
-      toast({ title: "Error", description: "Failed to rename note", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: "Failed to rename note", 
+        variant: "destructive" 
+      });
     }
   };
 
   const handleDelete = async (noteId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/notes/${noteId}`, {
+      // ✅ UPDATED
+      const response = await fetch(`${API_URL}/notes/${noteId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
       
       if (response.ok) {
-        toast({ title: "Note deleted", description: "Your note has been deleted." });
+        toast({ 
+          title: "Note deleted", 
+          description: "Your note has been deleted." 
+        });
         fetchNotes();
       }
     } catch (error) {
-      toast({ title: "Error", description: "Failed to delete note", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: "Failed to delete note", 
+        variant: "destructive" 
+      });
     }
   };
 
@@ -123,47 +127,30 @@ const FavoriteNotes = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader 
           title="Favorite Notes" 
-          subtitle="Your starred notes collection"
-          onSearch={handleSearch}
-          showSearch={true}
+          subtitle="Quick access to your starred lecture notes"
         />
         
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="space-y-6">
-            <div className="flex justify-end items-center gap-2">
-              <div className="flex bg-secondary/50 p-1 rounded-lg border border-border">
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md bg-background shadow-sm">
-                  <Grid3X3 className="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md text-muted-foreground">
-                  <List className="w-4 h-4" />
-                </Button>
-              </div>
-              <Button className="gap-2 rounded-full" onClick={() => navigate('/dashboard/record')}>
-                <Plus className="w-4 h-4" />
-                New Note
-              </Button>
-            </div>
-
             {isLoading ? (
-              <div className="text-center py-10">Loading favorites...</div>
-            ) : filteredNotes.length === 0 ? (
-              <div className="col-span-full text-center py-12 text-muted-foreground bg-card rounded-xl border border-border">
-                <p className="mb-2">{searchQuery ? "No favorite notes match your search." : "No favorite notes yet."}</p>
-                {!searchQuery && (
-                  <p className="text-sm">Star some notes to see them here!</p>
-                )}
+              <div className="text-center py-10">Loading favorite notes...</div>
+            ) : notes.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground bg-card rounded-xl border border-border">
+                <p className="mb-2">No favorite notes yet.</p>
+                <Button variant="link" onClick={() => navigate('/dashboard/notes')}>
+                  Browse all notes
+                </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                {filteredNotes.map((note) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6">
+                {notes.map((note) => (
                   <NoteCard
                     key={note.id}
                     id={note.id}
                     title={note.title}
-                    subject="General" 
+                    subject="General"
                     date={new Date(note.created_at * 1000).toLocaleDateString()}
-                    duration="--" 
+                    duration="--"
                     preview={note.preview}
                     isFavorite={note.is_favorite || false}
                     onToggleFavorite={() => handleToggleFavorite(note.id)}

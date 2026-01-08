@@ -85,7 +85,8 @@ const NoteCard = ({
     setIsDownloading(true);
     
     try {
-      const response = await fetch(`http://localhost:5000/notes/${id}/export-pdf`, {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${API_URL}/notes/${id}/export-pdf`, {
         credentials: 'include',
       });
       
