@@ -40,14 +40,14 @@ import requests
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from google import genai
+import google.generativeai as genai
 from google.genai import types
 from google.cloud import speech
 
 
 # ✅ Gemini setup (FIXED)
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
-gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 print(f"🔑 Using Gemini API Key: {os.getenv('GEMINI_API_KEY')[:20] if os.getenv('GEMINI_API_KEY') else 'NOT SET'}...")
 
 
@@ -159,15 +159,12 @@ else:
 
 # ✅ Gemini generation function (FIXED for google-genai SDK)
 def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
-    """Generate text using Gemini API with google-genai SDK."""
     try:
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt
-        )
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
-        print(f"❌ Gemini API error: {e}")
+        print(f"Gemini API error: {e}")
         raise
 
 
