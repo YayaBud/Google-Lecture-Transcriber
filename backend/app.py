@@ -40,6 +40,33 @@ from googleapiclient.discovery import build
 import google.generativeai as genai
 from google.cloud import speech
 
+from flask import Flask, request, jsonify, session, send_file, redirect
+from flask_cors import CORS
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = Flask(__name__)
+
+# ✅ UPDATED: Secure session configuration
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
+app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS only
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
+app.config['SESSION_COOKIE_DOMAIN'] = None  # Let browser handle it
+
+# ✅ UPDATED: CORS with credentials
+CORS(app, 
+     origins=[
+         'https://google-lecture-transcriber.vercel.app',
+         'http://localhost:5173'
+     ],
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+)
+
 # ✅ Gemini setup (FIXED)
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
