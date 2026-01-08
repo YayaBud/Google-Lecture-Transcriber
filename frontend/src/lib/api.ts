@@ -13,18 +13,6 @@ interface SignupData {
   password: string;
 }
 
-// Helper to get auth headers
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('authToken');
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json'
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-};
-
 export const api = {
   // Auth endpoints
   login: async (formData: LoginData) => {
@@ -32,16 +20,9 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
-      credentials: 'include'
+      credentials: 'include' // ✅ Good!
     });
-    const data = await response.json();
-    
-    // Store token for mobile
-    if (data.token) {
-      localStorage.setItem('authToken', data.token);
-    }
-    
-    return { response, data };
+    return { response, data: await response.json() };
   },
 
   register: async (formData: SignupData) => {
@@ -49,16 +30,9 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
-      credentials: 'include'
+      credentials: 'include' // ✅ ADDED - CRITICAL!
     });
-    const data = await response.json();
-    
-    // Store token for mobile
-    if (data.token) {
-      localStorage.setItem('authToken', data.token);
-    }
-    
-    return { response, data };
+    return { response, data: await response.json() };
   },
 
   googleLogin: () => {
@@ -66,53 +40,31 @@ export const api = {
   },
 
   getAuthStatus: async () => {
-    const token = localStorage.getItem('authToken');
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
     const response = await fetch(`${API_URL}/auth/status`, {
-      credentials: 'include',
-      headers
+      credentials: 'include' // ✅ Good!
     });
     return await response.json();
   },
 
   logout: async () => {
-    localStorage.removeItem('authToken');
     const response = await fetch(`${API_URL}/auth/logout`, {
-      credentials: 'include'
+      credentials: 'include' // ✅ ADDED - Good practice
     });
     return await response.json();
   },
 
   // Notes endpoints
   getNotes: async () => {
-    const token = localStorage.getItem('authToken');
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
     const response = await fetch(`${API_URL}/notes`, { 
-      credentials: 'include',
-      headers
+      credentials: 'include' // ✅ Good!
     });
     return await response.json();
   },
 
   toggleFavorite: async (noteId: string) => {
-    const token = localStorage.getItem('authToken');
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
     const response = await fetch(`${API_URL}/notes/${noteId}/favorite`, {
       method: 'POST',
-      credentials: 'include',
-      headers
+      credentials: 'include' // ✅ Good!
     });
     return await response.json();
   },
@@ -120,38 +72,24 @@ export const api = {
   updateNote: async (noteId: string, title: string) => {
     const response = await fetch(`${API_URL}/notes/${noteId}`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // ✅ Good!
       body: JSON.stringify({ title })
     });
     return await response.json();
   },
 
   deleteNote: async (noteId: string) => {
-    const token = localStorage.getItem('authToken');
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
     const response = await fetch(`${API_URL}/notes/${noteId}`, {
       method: 'DELETE',
-      credentials: 'include',
-      headers
+      credentials: 'include' // ✅ Good!
     });
     return await response.json();
   },
 
   exportPdf: async (noteId: string) => {
-    const token = localStorage.getItem('authToken');
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
     const response = await fetch(`${API_URL}/notes/${noteId}/export-pdf`, {
-      credentials: 'include',
-      headers
+      credentials: 'include' // ✅ ADDED
     });
     if (!response.ok) throw new Error('Export failed');
     return response.blob();
@@ -159,15 +97,8 @@ export const api = {
 
   // Folders endpoints
   getFolders: async () => {
-    const token = localStorage.getItem('authToken');
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
     const response = await fetch(`${API_URL}/folders`, { 
-      credentials: 'include',
-      headers
+      credentials: 'include' // ✅ Good!
     });
     return await response.json();
   },
@@ -175,8 +106,8 @@ export const api = {
   createFolder: async (name: string) => {
     const response = await fetch(`${API_URL}/folders`, {
       method: 'POST',
-      headers: getAuthHeaders(),
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // ✅ Good!
       body: JSON.stringify({ name })
     });
     return await response.json();
@@ -185,24 +116,17 @@ export const api = {
   renameFolder: async (folderId: string, name: string) => {
     const response = await fetch(`${API_URL}/folders/${folderId}`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // ✅ Good!
       body: JSON.stringify({ name })
     });
     return await response.json();
   },
 
   deleteFolder: async (folderId: string) => {
-    const token = localStorage.getItem('authToken');
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
     const response = await fetch(`${API_URL}/folders/${folderId}`, {
       method: 'DELETE',
-      credentials: 'include',
-      headers
+      credentials: 'include' // ✅ Good!
     });
     return await response.json();
   },
@@ -210,30 +134,23 @@ export const api = {
   addNotesToFolder: async (folderId: string, noteIds: string[]) => {
     const response = await fetch(`${API_URL}/folders/${folderId}/notes`, {
       method: 'POST',
-      headers: getAuthHeaders(),
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // ✅ Good!
       body: JSON.stringify({ note_ids: noteIds })
     });
     return await response.json();
   },
 
-  // Transcription & Notes Generation
+  // ✅ ADDED: Transcription & Notes Generation
   transcribeAudio: async (audioBlob: Blob, method: 'whisper' | 'google' = 'whisper') => {
-    const token = localStorage.getItem('authToken');
     const formData = new FormData();
     formData.append('audio', audioBlob);
     formData.append('method', method);
 
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
     const response = await fetch(`${API_URL}/transcribe`, {
       method: 'POST',
       body: formData,
-      credentials: 'include',
-      headers
+      credentials: 'include' // ✅ CRITICAL!
     });
     return await response.json();
   },
@@ -241,8 +158,8 @@ export const api = {
   generateNotes: async (transcript: string) => {
     const response = await fetch(`${API_URL}/generate-notes`, {
       method: 'POST',
-      headers: getAuthHeaders(),
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // ✅ CRITICAL!
       body: JSON.stringify({ transcript })
     });
     return await response.json();
@@ -251,8 +168,8 @@ export const api = {
   pushToGoogleDocs: async (notes: string, title: string, noteId?: string) => {
     const response = await fetch(`${API_URL}/push-to-docs`, {
       method: 'POST',
-      headers: getAuthHeaders(),
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // ✅ CRITICAL!
       body: JSON.stringify({ notes, title, note_id: noteId })
     });
     return await response.json();
