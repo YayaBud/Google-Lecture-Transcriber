@@ -14,12 +14,15 @@ from flask import send_file
 import io
 import os
 
+
 # Load environment before other imports
 from dotenv import load_dotenv
 load_dotenv()
 
+
 DEVICE = "cpu"
 COMPUTE_TYPE = "int8"
+
 
 # Import faster-whisper instead of openai-whisper   
 from faster_whisper import WhisperModel
@@ -38,41 +41,62 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google import genai
+from google.genai import types
 from google.cloud import speech
 
-# ✅ Gemini setup
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+# ✅ Gemini setup (FIXED)
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
 gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-print(f"🔑 Using Gemini API Key: {os.getenv('GEMINI_API_KEY')[:20]}...")
+print(f"🔑 Using Gemini API Key: {os.getenv('GEMINI_API_KEY')[:20] if os.getenv('GEMINI_API_KEY') else 'NOT SET'}...")
+
 
 # ✅ Google Speech-to-Text setup
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'google-speech-credentials.json'
-print(f"✅ Google Speech-to-Text credentials loaded")
+speech_creds_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', 'google-speech-credentials.json')
+if os.path.exists(speech_creds_path):
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = speech_creds_path
+    print(f"✅ Google Speech-to-Text credentials loaded from {speech_creds_path}")
+else:
+    print(f"⚠️ Warning: Google Speech credentials file not found at {speech_creds_path}")
+
 
 # allow HTTP for local OAuth redirects
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
+
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'super_secret_dev_key_123')
-CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
+
+# CORS configuration - update for Railway deployment
+frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+CORS(app, supports_credentials=True, origins=[frontend_url, "http://localhost:5173"])
+
 
 bcrypt = Bcrypt(app)
 
-# MongoDB Setup
-username = quote_plus(os.getenv('MONGODB_USER_ID'))
-password = quote_plus(os.getenv('MONGODB_PASSWORD'))
-MONGO_URI = os.getenv('MONGODB_URL').replace('<db_username>', username).replace('<db_password>', password)
 
-if 'authSource' not in MONGO_URI:
+# MongoDB Setup
+username = quote_plus(os.getenv('MONGODB_USER_ID', ''))
+password = quote_plus(os.getenv('MONGODB_PASSWORD', ''))
+MONGO_URI = os.getenv('MONGODB_URL', '').replace('<db_username>', username).replace('<db_password>', password)
+
+
+if MONGO_URI and 'authSource' not in MONGO_URI:
     if '?' in MONGO_URI:
         MONGO_URI += "&authSource=admin"
     else:
         MONGO_URI += "?authSource=admin"
 
-masked_uri = MONGO_URI.replace(password, '********')
-print(f"Connecting to MongoDB with URI: {masked_uri}")
+
+if MONGO_URI:
+    masked_uri = MONGO_URI.replace(password, '********') if password else MONGO_URI
+    print(f"Connecting to MongoDB with URI: {masked_uri}")
+
 
 try:
+    if not MONGO_URI:
+        raise Exception("MONGODB_URL environment variable not set")
+    
     mongo_client = MongoClient(
         MONGO_URI, 
         serverSelectionTimeoutMS=10000,
@@ -83,9 +107,13 @@ try:
     users_collection = db.users
     notes_collection = db.notes
     mongo_client.server_info()
-    print("Connected to MongoDB!")
+    print("✅ Connected to MongoDB!")
 except Exception as e:
-    print(f"Error connecting to MongoDB: {e}")
+    print(f"❌ Error connecting to MongoDB: {e}")
+    db = None
+    users_collection = None
+    notes_collection = None
+
 
 # Auth Decorator
 def login_required(f):
@@ -96,13 +124,16 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
 # Debug setup
 DEBUG_DIR = os.path.join(os.path.dirname(__file__), 'debug_audio')
 os.makedirs(DEBUG_DIR, exist_ok=True)
 
+
 # Load Whisper model with faster-whisper
 WHISPER_MODEL = os.getenv('WHISPER_MODEL', 'small')
 print(f"Loading Whisper model: {WHISPER_MODEL} on {DEVICE}...")
+
 
 try:
     model = WhisperModel(
@@ -117,16 +148,18 @@ except Exception as e:
     print(f"❌ Error loading Whisper model: {e}")
     model = None
 
+
 # Check for ffmpeg
 ffmpeg_path = shutil.which('ffmpeg')
 if not ffmpeg_path:
-    print("WARNING: 'ffmpeg' not found in PATH.")
+    print("⚠️ WARNING: 'ffmpeg' not found in PATH.")
 else:
-    print(f"ffmpeg found at: {ffmpeg_path}")
+    print(f"✅ ffmpeg found at: {ffmpeg_path}")
 
-# ✅ Gemini generation function
+
+# ✅ Gemini generation function (FIXED for google-genai SDK)
 def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
-    """Generate text using Gemini API."""
+    """Generate text using Gemini API with google-genai SDK."""
     try:
         response = gemini_client.models.generate_content(
             model=GEMINI_MODEL,
@@ -134,8 +167,9 @@ def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
         )
         return response.text.strip()
     except Exception as e:
-        print(f"Gemini API error: {e}")
+        print(f"❌ Gemini API error: {e}")
         raise
+
 
 # ✅ Google Speech-to-Text function
 def transcribe_with_google_speech(audio_path: str):
@@ -192,6 +226,7 @@ def transcribe_with_google_speech(audio_path: str):
         print(f"❌ Google Speech error: {e}")
         return None, None
 
+
 # Audio processing helpers
 def reduce_noise_np(audio: np.ndarray, reduction_factor: float = 0.01) -> np.ndarray:
     if audio.ndim > 1:
@@ -202,8 +237,10 @@ def reduce_noise_np(audio: np.ndarray, reduction_factor: float = 0.01) -> np.nda
         return filtered * 0.8 + audio * 0.2
     return audio
 
+
 def rms(x: np.ndarray) -> float:
     return float(np.sqrt(np.mean(x.astype(np.float64) ** 2))) if x.size > 0 else 0.0
+
 
 def trim_silence(audio: np.ndarray, sample_rate: int, thresh_db: float = -40.0, chunk_ms: int = 30):
     thresh = 10 ** (thresh_db / 20.0)
@@ -226,6 +263,7 @@ def trim_silence(audio: np.ndarray, sample_rate: int, thresh_db: float = -40.0, 
     end_sample = min(len(audio), (end_chunk + 1) * chunk_size)
     return audio[start_sample:end_sample]
 
+
 def normalize_audio(audio: np.ndarray) -> np.ndarray:
     if audio is None or audio.size == 0:
         return audio
@@ -233,6 +271,7 @@ def normalize_audio(audio: np.ndarray) -> np.ndarray:
     if peak <= 0:
         return audio
     return audio / float(peak)
+
 
 def write_wav_mono(path: str, audio: np.ndarray, sr: int):
     audio_clipped = np.clip(audio, -1.0, 1.0)
@@ -242,6 +281,7 @@ def write_wav_mono(path: str, audio: np.ndarray, sr: int):
         wf.setsampwidth(2)
         wf.setframerate(sr)
         wf.writeframes(int_data.tobytes())
+
 
 def read_wav_mono(path: str):
     with wave.open(path, 'rb') as wf:
@@ -258,6 +298,7 @@ def read_wav_mono(path: str):
     if channels > 1:
         arr = arr.reshape(-1, channels).mean(axis=1)
     return arr, sr
+
 
 def decode_audio_to_np(path: str, target_sr: int = 16000) -> Tuple[Optional[np.ndarray], Optional[int]]:
     if not shutil.which('ffmpeg'):
@@ -288,6 +329,7 @@ def decode_audio_to_np(path: str, target_sr: int = 16000) -> Tuple[Optional[np.n
         print(f"decode_audio_to_np failed: {e}")
         return None, None
 
+
 # Google OAuth setup
 SCOPES = ['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file']
 LOGIN_SCOPES = [
@@ -299,12 +341,17 @@ LOGIN_SCOPES = [
 ]
 CLIENT_SECRET_FILE = 'credentials_oauth.json'
 
+# Dynamic redirect URIs for Railway
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
+FRONTEND_REDIRECT = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+
+
 @app.route('/auth/google/login')
 def google_login():
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRET_FILE,
         scopes=LOGIN_SCOPES,
-        redirect_uri='http://localhost:5000/auth/google/callback'
+        redirect_uri=f'{BASE_URL}/auth/google/callback'
     )
     authorization_url, state = flow.authorization_url(
         access_type='offline',
@@ -312,6 +359,7 @@ def google_login():
     )
     session['state'] = state
     return redirect(authorization_url)
+
 
 @app.route('/auth/google/callback')
 def google_login_callback():
@@ -325,7 +373,7 @@ def google_login_callback():
             CLIENT_SECRET_FILE,
             scopes=LOGIN_SCOPES,
             state=state,
-            redirect_uri='http://localhost:5000/auth/google/callback'
+            redirect_uri=f'{BASE_URL}/auth/google/callback'
         )
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
@@ -369,11 +417,12 @@ def google_login_callback():
             
         session['user_id'] = str(user_id)
         print(f"✅ User {email} logged in successfully!")
-        return redirect("http://localhost:5173/dashboard")
+        return redirect(f"{FRONTEND_REDIRECT}/dashboard")
         
     except Exception as e:
         print(f"❌ OAuth callback error: {str(e)}")
-        return redirect("http://localhost:5173/login?error=auth_failed")
+        return redirect(f"{FRONTEND_REDIRECT}/login?error=auth_failed")
+
 
 @app.route('/auth/status')
 def auth_status():
@@ -391,10 +440,12 @@ def auth_status():
             })
     return jsonify({'authenticated': False}), 200
 
+
 @app.route('/auth/logout')
 def logout():
     session.clear()
     return jsonify({'success': True})
+
 
 @app.route('/transcribe', methods=['POST'])
 @login_required
@@ -404,6 +455,7 @@ def transcribe_audio():
     try:
         if 'audio' not in request.files:
             return jsonify({'error': 'No audio file provided'}), 400
+
 
         # Get method from request (default: whisper for free usage)
         method = request.form.get('method', 'whisper')
@@ -421,9 +473,11 @@ def transcribe_audio():
             else:
                 orig_ext = '.mp4'
 
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=orig_ext) as tf:
             audio_file.save(tf.name)
             temp_path = tf.name
+
 
         print(f"Saved upload to: {temp_path} (Size: {os.path.getsize(temp_path)} bytes)")
         
@@ -467,10 +521,12 @@ def transcribe_audio():
         elapsed_time = time.time() - start_time
         print(f"✅ Transcription completed in {elapsed_time:.2f}s using {method}")
 
+
         try:
             os.unlink(temp_path)
         except:
             pass
+
 
         return jsonify({
             'transcript': transcript,
@@ -481,9 +537,11 @@ def transcribe_audio():
             'method': method
         })
 
+
     except Exception as e:
         print(f"ERROR: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/generate-notes', methods=['POST'])
 @login_required
@@ -497,8 +555,10 @@ def generate_notes():
         
         prompt = f"""You are an expert note-taker. Analyze the following lecture transcript and create structured, easy-to-read notes.
 
+
 TRANSCRIPT:
 {transcript}
+
 
 INSTRUCTIONS:
 1. Identify the Main Topic.
@@ -506,15 +566,19 @@ INSTRUCTIONS:
 3. Extract Important Concepts and define them briefly.
 4. Provide a concise Summary.
 
+
 OUTPUT FORMAT:
 ## Main Topic
+
 
 ### Key Points
 - [Point 1]
 - [Point 2]
 
+
 ### Important Concepts
 - **[Concept]**: [Definition]
+
 
 ### Summary
 [Summary text]
@@ -534,6 +598,7 @@ OUTPUT FORMAT:
             'updated_at': time.time()
         }).inserted_id
 
+
         return jsonify({
             'notes': notes,
             'note_id': str(note_id),
@@ -543,6 +608,7 @@ OUTPUT FORMAT:
         print(f"ERROR generating notes: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/register', methods=['POST'])
 def register():
     data = request.json
@@ -551,11 +617,14 @@ def register():
     first_name = data.get('firstName')
     last_name = data.get('lastName')
 
+
     if not email or not password:
         return jsonify({'error': 'Email and password required'}), 400
 
+
     if users_collection.find_one({'email': email}):
         return jsonify({'error': 'User already exists'}), 400
+
 
     hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
     user_id = users_collection.insert_one({
@@ -566,8 +635,10 @@ def register():
         'created_at': time.time()
     }).inserted_id
 
+
     session['user_id'] = str(user_id)
     return jsonify({'success': True, 'user': {'email': email, 'name': f"{first_name} {last_name}"}})
+
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -575,12 +646,14 @@ def login():
     email = data.get('email')
     password = data.get('password')
 
+
     user = users_collection.find_one({'email': email})
     if user and bcrypt.check_password_hash(user['password'], password):
         session['user_id'] = str(user['_id'])
         return jsonify({'success': True, 'user': {'email': email, 'name': f"{user.get('first_name', '')} {user.get('last_name', '')}"}})
     
     return jsonify({'error': 'Invalid credentials'}), 401
+
 
 @app.route('/me', methods=['GET'])
 def get_current_user():
@@ -600,13 +673,14 @@ def get_current_user():
         }
     })
 
+
 @app.route('/auth/google')
 @login_required
 def google_auth():
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRET_FILE,
         scopes=SCOPES,
-        redirect_uri='http://localhost:5000/oauth2callback'
+        redirect_uri=f'{BASE_URL}/oauth2callback'
     )
     authorization_url, state = flow.authorization_url(
         access_type='offline',
@@ -615,17 +689,19 @@ def google_auth():
     session['state'] = state
     return jsonify({'auth_url': authorization_url})
 
+
 @app.route('/oauth2callback')
 def oauth2callback():
     if 'user_id' not in session:
-        return redirect("http://localhost:5173/login")
+        return redirect(f"{FRONTEND_REDIRECT}/login")
+
 
     state = session['state']
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRET_FILE,
         scopes=SCOPES,
         state=state,
-        redirect_uri='http://localhost:5000/oauth2callback'
+        redirect_uri=f'{BASE_URL}/oauth2callback'
     )
     flow.fetch_token(authorization_response=request.url)
     
@@ -644,7 +720,8 @@ def oauth2callback():
         {'$set': {'google_credentials': creds_data}}
     )
     
-    return redirect("http://localhost:5173/dashboard/record")
+    return redirect(f"{FRONTEND_REDIRECT}/dashboard/record")
+
 
 @app.route('/notes', methods=['GET'])
 @login_required
@@ -671,6 +748,7 @@ def get_notes():
         print(f"Error fetching notes: {e}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/notes/<note_id>/favorite', methods=['POST'])
 @login_required
 def toggle_favorite(note_id):
@@ -690,6 +768,7 @@ def toggle_favorite(note_id):
         return jsonify({'success': True, 'is_favorite': new_status})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/notes/<note_id>/export-pdf', methods=['GET'])
 @login_required
@@ -816,6 +895,7 @@ def export_pdf(note_id):
         print(f"Error exporting PDF: {e}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/folders', methods=['GET'])
 @login_required
 def get_folders():
@@ -834,6 +914,7 @@ def get_folders():
         return jsonify({'success': True, 'folders': folders})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/folders/<folder_id>', methods=['PUT'])
 @login_required
@@ -861,6 +942,7 @@ def update_folder(folder_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/folders/<folder_id>', methods=['DELETE'])
 @login_required
 def delete_folder(folder_id):
@@ -874,6 +956,7 @@ def delete_folder(folder_id):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/folders/<folder_id>/notes', methods=['POST'])
 @login_required
@@ -907,6 +990,7 @@ def add_notes_to_folder(folder_id):
         print(f"Error adding notes to folder: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/folders', methods=['POST'])
 @login_required
 def create_folder():
@@ -930,6 +1014,7 @@ def create_folder():
         return jsonify({'success': True, 'folder_id': str(result.inserted_id)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/notes', methods=['POST'])
 @login_required
@@ -959,6 +1044,7 @@ def create_note_metadata():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/notes/<note_id>', methods=['PUT'])
 @login_required
 def update_note(note_id):
@@ -986,6 +1072,7 @@ def update_note(note_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/notes/<note_id>', methods=['DELETE'])
 @login_required
 def delete_note(note_id):
@@ -1000,6 +1087,7 @@ def delete_note(note_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/push-to-docs', methods=['POST'])
 @login_required
 def push_to_docs():
@@ -1007,6 +1095,7 @@ def push_to_docs():
         user = users_collection.find_one({'_id': ObjectId(session['user_id'])})
         if not user or 'google_credentials' not in user:
              return jsonify({'error': 'Google account not connected', 'needs_auth': True}), 401
+
 
         creds_data = user['google_credentials']
         credentials = Credentials(**creds_data)
@@ -1071,9 +1160,12 @@ def push_to_docs():
         print(f"ERROR pushing to docs: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'running'})
 
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.getenv('PORT', 5000))
+    app.run(host='0.0.0.0', debug=False, port=port)

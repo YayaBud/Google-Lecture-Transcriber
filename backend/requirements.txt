@@ -8,6 +8,6 @@ reportlab
 faster-whisper==1.2.1
 numpy<2.0.0
 google-cloud-speech
-google-generativeai
+google-genai
 google-auth-oauthlib
 google-api-python-client
