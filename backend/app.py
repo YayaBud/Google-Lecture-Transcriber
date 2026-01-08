@@ -13,7 +13,6 @@ from datetime import datetime
 from flask import send_file
 import io
 import os
-import torch
 
 # Load environment before other imports
 from dotenv import load_dotenv
