@@ -131,7 +131,7 @@ os.makedirs(DEBUG_DIR, exist_ok=True)
 
 
 # Load Whisper model with faster-whisper
-WHISPER_MODEL = os.getenv('WHISPER_MODEL', 'small')
+WHISPER_MODEL = os.getenv('WHISPER_MODEL', 'tiny')  # Change from 'small' to 'tiny'
 print(f"Loading Whisper model: {WHISPER_MODEL} on {DEVICE}...")
 
 
