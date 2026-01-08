@@ -5,7 +5,7 @@ import { Mic, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useToast } from "../hooks/use-toast";
-
+import { api } from '../lib/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -20,14 +20,7 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-        credentials: 'include'
-      });
-      
-      const data = await response.json();
+      const { response, data } = await api.login(formData);
       
       if (response.ok) {
         toast({
@@ -62,37 +55,48 @@ const Login = () => {
         </Link>
 
         <div className="bg-card border border-border rounded-3xl p-8 shadow-xl">
-                    {/* Interactive test credentials info box */}
-                    <div className="mb-6 flex flex-col items-center animate-fade-in">
-                      <div className="bg-gradient-to-br from-primary/20 via-background to-primary/10 border border-primary/40 rounded-2xl px-6 py-5 flex flex-col items-center gap-3 shadow-xl animate-fade-in">
-                        <span className="font-semibold text-lg text-primary flex items-center gap-2">
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="inline-block"><path d="M12 2C7.03 2 3 6.03 3 11c0 4.97 4.03 9 9 9s9-4.03 9-9c0-4.97-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z" fill="#38bdf8"/><path d="M12 7a4 4 0 100 8 4 4 0 000-8z" fill="#0ea5e9"/></svg>
-                          Test Login Credentials
-                        </span>
-                        <div className="flex gap-3 items-center w-full justify-center">
-                          <span className="text-sm text-muted-foreground font-medium">Email:</span>
-                          <span id="test-email" className="text-sm font-mono px-3 py-1 rounded-lg bg-black/80 border border-primary/30 select-all cursor-pointer shadow-sm transition-all duration-300 hover:scale-105 hover:bg-primary/30" onClick={() => {navigator.clipboard.writeText('soulera897@gmail.com'); showCopy('email');}}>soulera897@gmail.com</span>
-                          <button type="button" className="text-xs text-primary underline font-semibold px-2 py-1 rounded transition-all duration-200 hover:bg-primary/10" onClick={() => {navigator.clipboard.writeText('soulera897@gmail.com'); showCopy('email');}}>Copy</button>
-                          <span id="copy-email-feedback" className="ml-2 text-xs text-green-400 font-semibold opacity-0 transition-opacity duration-500">Copied!</span>
-                        </div>
-                        <div className="flex gap-3 items-center w-full justify-center">
-                          <span className="text-sm text-muted-foreground font-medium">Password:</span>
-                          <span id="test-pass" className="text-sm font-mono px-3 py-1 rounded-lg bg-black/80 border border-primary/30 select-all cursor-pointer shadow-sm transition-all duration-300 hover:scale-105 hover:bg-primary/30" onClick={() => {navigator.clipboard.writeText('Souleragonnawin'); showCopy('pass');}}>Souleragonnawin</span>
-                          <button type="button" className="text-xs text-primary underline font-semibold px-2 py-1 rounded transition-all duration-200 hover:bg-primary/10" onClick={() => {navigator.clipboard.writeText('Souleragonnawin'); showCopy('pass');}}>Copy</button>
-                          <span id="copy-pass-feedback" className="ml-2 text-xs text-green-400 font-semibold opacity-0 transition-opacity duration-500">Copied!</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground mt-2 text-center">Use these credentials to log in for testing!</span>
-                      </div>
-                      <script dangerouslySetInnerHTML={{__html:`
-                        window.showCopy = function(type) {
-                          const el = document.getElementById(type === 'email' ? 'copy-email-feedback' : 'copy-pass-feedback');
-                          if (el) {
-                            el.style.opacity = '1';
-                            setTimeout(() => { el.style.opacity = '0'; }, 1200);
-                          }
-                        }
-                      `}} />
-                    </div>
+          {/* Interactive test credentials info box */}
+          <div className="mb-6 flex flex-col items-center animate-fade-in">
+            <div className="bg-gradient-to-br from-primary/20 via-background to-primary/10 border border-primary/40 rounded-2xl px-6 py-5 flex flex-col items-center gap-3 shadow-xl animate-fade-in">
+              <span className="font-semibold text-lg text-primary flex items-center gap-2">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="inline-block">
+                  <path d="M12 2C7.03 2 3 6.03 3 11c0 4.97 4.03 9 9 9s9-4.03 9-9c0-4.97-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z" fill="#38bdf8"/>
+                  <path d="M12 7a4 4 0 100 8 4 4 0 000-8z" fill="#0ea5e9"/>
+                </svg>
+                Test Login Credentials
+              </span>
+              <div className="flex gap-3 items-center w-full justify-center">
+                <span className="text-sm text-muted-foreground font-medium">Email:</span>
+                <button 
+                  type="button"
+                  className="text-sm font-mono px-3 py-1 rounded-lg bg-black/80 border border-primary/30 cursor-pointer shadow-sm transition-all duration-300 hover:scale-105 hover:bg-primary/30"
+                  onClick={() => {
+                    navigator.clipboard.writeText('soulera897@gmail.com');
+                    toast({ title: "Copied!", description: "Email copied to clipboard" });
+                  }}
+                >
+                  soulera897@gmail.com
+                </button>
+              </div>
+              <div className="flex gap-3 items-center w-full justify-center">
+                <span className="text-sm text-muted-foreground font-medium">Password:</span>
+                <button 
+                  type="button"
+                  className="text-sm font-mono px-3 py-1 rounded-lg bg-black/80 border border-primary/30 cursor-pointer shadow-sm transition-all duration-300 hover:scale-105 hover:bg-primary/30"
+                  onClick={() => {
+                    navigator.clipboard.writeText('Souleragonnawin');
+                    toast({ title: "Copied!", description: "Password copied to clipboard" });
+                  }}
+                >
+                  Souleragonnawin
+                </button>
+              </div>
+              <span className="text-xs text-muted-foreground mt-2 text-center">
+                Use these credentials to log in for testing!
+              </span>
+            </div>
+          </div>
+          
           <div className="flex flex-col items-center mb-8">
             <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shadow-lg mb-4">
               <Mic className="w-6 h-6 text-primary-foreground" />
@@ -125,7 +129,6 @@ const Login = () => {
               />
             </div>
             
-            {/* ✅ FIXED: Dark theme primary button */}
             <Button 
               type="submit"
               disabled={isLoading}
@@ -144,14 +147,11 @@ const Login = () => {
             </div>
           </div>
 
-          {/* ✅ FIXED: Dark theme outline button for Google */}
           <Button 
             type="button"
             variant="outline" 
             className="w-full h-11 rounded-xl transition-all duration-300 hover:bg-accent"
-            onClick={() => {
-              window.location.href = 'http://localhost:5000/auth/google/login';
-            }}
+            onClick={() => api.googleLogin()}
           >
             <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
               <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>

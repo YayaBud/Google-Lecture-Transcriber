@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../hooks/use-toast";
 import { FileText, Clock, Star, FolderOpen, Mic, Search } from "lucide-react";
 import { Input } from "../components/ui/input";
-
+import { api } from '../lib/api';
 
 interface Note {
   id: string;
@@ -59,18 +59,10 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [notesRes, foldersRes] = await Promise.all([
-        fetch('http://localhost:5000/notes', { credentials: 'include' }),
-        fetch('http://localhost:5000/folders', { credentials: 'include' })
+      const [notesData, foldersData] = await Promise.all([
+        api.getNotes(),
+        api.getFolders()
       ]);
-
-      if (notesRes.status === 401 || foldersRes.status === 401) {
-        navigate('/login');
-        return;
-      }
-
-      const notesData = await notesRes.json();
-      const foldersData = await foldersRes.json();
 
       if (notesData.success) {
         setNotes(notesData.notes);
@@ -80,6 +72,7 @@ const Dashboard = () => {
       }
     } catch (error) {
       console.error("Failed to fetch data", error);
+      navigate('/login');
     } finally {
       setIsLoading(false);
     }
@@ -91,10 +84,7 @@ const Dashboard = () => {
 
   const handleToggleFavorite = async (noteId: string) => {
     try {
-      await fetch(`http://localhost:5000/notes/${noteId}/favorite`, {
-        method: 'POST',
-        credentials: 'include'
-      });
+      await api.toggleFavorite(noteId);
       fetchData();
     } catch (error) {
       console.error("Failed to toggle favorite", error);
@@ -103,17 +93,9 @@ const Dashboard = () => {
 
   const handleRename = async (noteId: string, newTitle: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/notes/${noteId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ title: newTitle })
-      });
-      
-      if (response.ok) {
-        toast({ title: "Note renamed", description: "Your note has been renamed successfully." });
-        fetchData();
-      }
+      await api.updateNote(noteId, newTitle);
+      toast({ title: "Note renamed", description: "Your note has been renamed successfully." });
+      fetchData();
     } catch (error) {
       toast({ title: "Error", description: "Failed to rename note", variant: "destructive" });
     }
@@ -121,15 +103,9 @@ const Dashboard = () => {
 
   const handleDelete = async (noteId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/notes/${noteId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        toast({ title: "Note deleted", description: "Your note has been deleted." });
-        fetchData();
-      }
+      await api.deleteNote(noteId);
+      toast({ title: "Note deleted", description: "Your note has been deleted." });
+      fetchData();
     } catch (error) {
       toast({ title: "Error", description: "Failed to delete note", variant: "destructive" });
     }
@@ -231,7 +207,6 @@ const Dashboard = () => {
                 <h2 className="text-xl font-semibold text-foreground">
                   {searchQuery ? "Search Results" : "Recent Notes"}
                 </h2>
-                {/* Removed debug/count badge */}
                 {!searchQuery && (
                   <Button 
                     variant="ghost" 

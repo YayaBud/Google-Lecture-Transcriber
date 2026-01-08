@@ -5,7 +5,7 @@ import { Mic, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useToast } from "../hooks/use-toast";
-
+import { api } from '../lib/api';
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -22,13 +22,7 @@ const Signup = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      
-      const data = await response.json();
+      const { response, data } = await api.register(formData);
       
       if (response.ok) {
         toast({
@@ -121,6 +115,7 @@ const Signup = () => {
               {isLoading ? "Creating account..." : "Sign Up"}
             </Button>
           </form>
+          
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-border" />
@@ -134,15 +129,14 @@ const Signup = () => {
             type="button"
             variant="outline" 
             className="w-full h-11 rounded-xl border-border hover:bg-accent hover:text-accent-foreground transition-all duration-300"
-            onClick={() => {
-              window.location.href = 'http://localhost:5000/auth/google/login';
-            }}
+            onClick={() => api.googleLogin()}
           >
             <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
               <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
             </svg>
             Google
           </Button>
+          
           <div className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link to="/login" className="text-primary font-semibold hover:underline">

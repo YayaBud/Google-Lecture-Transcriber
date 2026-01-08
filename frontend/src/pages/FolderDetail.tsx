@@ -6,8 +6,7 @@ import NoteCard from "../components/dashboard/NoteCard";
 import { Button } from "../components/ui/button";
 import { ArrowLeft, FolderOpen } from "lucide-react";
 import { motion } from "framer-motion";
-
-
+import { api } from '../lib/api';
 
 interface Note {
   id: string;
@@ -19,14 +18,12 @@ interface Note {
   google_doc_url?: string;
 }
 
-
 interface Folder {
   id: string;
   name: string;
   note_ids: string[];
   created_at?: number;
 }
-
 
 const FolderDetail = () => {
   const { folderId } = useParams();
@@ -36,77 +33,51 @@ const FolderDetail = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-
   useEffect(() => {
     const fetchFolderAndNotes = async () => {
       try {
-        // Fetch all notes
-        const notesRes = await fetch('http://localhost:5000/notes', { 
-          credentials: 'include' 
-        });
+        const [notesData, foldersData] = await Promise.all([
+          api.getNotes(),
+          api.getFolders()
+        ]);
 
-
-        if (notesRes.status === 401) {
-          navigate('/login');
-          return;
+        // If we don't have folder data from navigation state, fetch it
+        if (!folder && foldersData.success) {
+          const currentFolder = foldersData.folders.find((f: Folder) => f.id === folderId);
+          setFolder(currentFolder || null);
         }
-
-
-        const notesData = await notesRes.json();
-
-
-        // If we don't have folder data from navigation state, fetch folders
-        if (!folder) {
-          const foldersRes = await fetch('http://localhost:5000/folders', { 
-            credentials: 'include' 
-          });
-          const foldersData = await foldersRes.json();
-          
-          if (foldersData.success) {
-            const currentFolder = foldersData.folders.find((f: Folder) => f.id === folderId);
-            setFolder(currentFolder || null);
-          }
-        }
-
 
         // Filter notes that are in this folder
-        if (notesData.success && folder) {
-          const folderNotes = notesData.notes.filter((note: Note) => 
-            folder.note_ids.includes(note.id)
-          );
-          setNotes(folderNotes);
+        if (notesData.success && (folder || foldersData.success)) {
+          const currentFolder = folder || foldersData.folders.find((f: Folder) => f.id === folderId);
+          if (currentFolder) {
+            const folderNotes = notesData.notes.filter((note: Note) => 
+              currentFolder.note_ids.includes(note.id)
+            );
+            setNotes(folderNotes);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch folder details", error);
+        navigate('/login');
       } finally {
         setIsLoading(false);
       }
     };
 
-
     fetchFolderAndNotes();
   }, [folderId, folder, navigate]);
 
-
   const handleToggleFavorite = async (noteId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/notes/${noteId}/favorite`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-
-
-      if (response.ok) {
-        const data = await response.json();
-        setNotes(prev => prev.map(note => 
-          note.id === noteId ? { ...note, is_favorite: data.is_favorite } : note
-        ));
-      }
+      const data = await api.toggleFavorite(noteId);
+      setNotes(prev => prev.map(note => 
+        note.id === noteId ? { ...note, is_favorite: data.is_favorite } : note
+      ));
     } catch (error) {
       console.error("Failed to toggle favorite", error);
     }
   };
-
 
   const handleNoteClick = (note: Note) => {
     if (note.google_doc_url) {
@@ -118,7 +89,6 @@ const FolderDetail = () => {
     }
   };
 
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex">
@@ -129,7 +99,6 @@ const FolderDetail = () => {
       </div>
     );
   }
-
 
   if (!folder) {
     return (
@@ -148,7 +117,6 @@ const FolderDetail = () => {
     );
   }
 
-
   return (
     <div className="min-h-screen bg-background flex">
       <DashboardSidebar />
@@ -159,7 +127,6 @@ const FolderDetail = () => {
           subtitle={`${notes.length} note${notes.length !== 1 ? 's' : ''} in this folder`}
           showSearch={false}
         />
-
 
         <main className="flex-1 p-8 overflow-y-auto">
           <div className="max-w-6xl mx-auto space-y-6">
@@ -172,7 +139,6 @@ const FolderDetail = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Subjects
             </Button>
-
 
             {/* Folder Info Card */}
             <div className="bg-card border border-border rounded-xl p-6 mb-6">
@@ -194,7 +160,6 @@ const FolderDetail = () => {
                 </div>
               </div>
             </div>
-
 
             {/* Notes Grid */}
             {notes.length === 0 ? (
@@ -226,7 +191,7 @@ const FolderDetail = () => {
                       })}
                       isFavorite={note.is_favorite || false}
                       onClick={() => handleNoteClick(note)}
-                      onToggleFavorite={handleToggleFavorite}
+                      onToggleFavorite={() => handleToggleFavorite(note.id)}
                     />
                   </motion.div>
                 ))}
@@ -238,6 +203,5 @@ const FolderDetail = () => {
     </div>
   );
 };
-
 
 export default FolderDetail;

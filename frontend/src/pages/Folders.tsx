@@ -30,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../components/ui/alert-dialog";
-
+import { api } from '../lib/api';
 
 interface Folder {
   id: string;
@@ -60,18 +60,10 @@ const Folders = () => {
 
   const fetchData = async () => {
     try {
-      const [foldersRes, notesRes] = await Promise.all([
-        fetch('http://localhost:5000/folders', { credentials: 'include' }),
-        fetch('http://localhost:5000/notes', { credentials: 'include' })
+      const [foldersData, notesData] = await Promise.all([
+        api.getFolders(),
+        api.getNotes()
       ]);
-
-      if (foldersRes.status === 401 || notesRes.status === 401) {
-        navigate('/login');
-        return;
-      }
-
-      const foldersData = await foldersRes.json();
-      const notesData = await notesRes.json();
 
       if (foldersData.success) {
         setFolders(foldersData.folders);
@@ -81,6 +73,7 @@ const Folders = () => {
       }
     } catch (error) {
       console.error("Failed to fetch data", error);
+      navigate('/login');
     } finally {
       setIsLoading(false);
     }
@@ -94,14 +87,8 @@ const Folders = () => {
     if (!newFolderName.trim()) return;
 
     try {
-      const response = await fetch('http://localhost:5000/folders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: newFolderName })
-      });
-
-      if (response.ok) {
+      const response = await api.createFolder(newFolderName);
+      if (response) {
         toast({ title: "Folder created", description: `"${newFolderName}" has been created.` });
         setNewFolderName("");
         setShowCreateDialog(false);
@@ -116,14 +103,8 @@ const Folders = () => {
     if (!renamingFolder || !newFolderName.trim()) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/folders/${renamingFolder.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: newFolderName })
-      });
-
-      if (response.ok) {
+      const response = await api.renameFolder(renamingFolder.id, newFolderName);
+      if (response) {
         toast({ title: "Folder renamed", description: `Renamed to "${newFolderName}".` });
         setRenamingFolder(null);
         setNewFolderName("");
@@ -138,12 +119,8 @@ const Folders = () => {
     if (!deletingFolder) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/folders/${deletingFolder.id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-
-      if (response.ok) {
+      const response = await api.deleteFolder(deletingFolder.id);
+      if (response) {
         toast({ title: "Folder deleted", description: "Folder has been removed." });
         setDeletingFolder(null);
         fetchData();
@@ -157,14 +134,8 @@ const Folders = () => {
     if (!selectedFolder || selectedNoteIds.length === 0) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/folders/${selectedFolder.id}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ note_ids: selectedNoteIds })
-      });
-
-      if (response.ok) {
+      const response = await api.addNotesToFolder(selectedFolder.id, selectedNoteIds);
+      if (response) {
         toast({ 
           title: "Notes added", 
           description: `${selectedNoteIds.length} note(s) added to "${selectedFolder.name}".` 
@@ -203,10 +174,6 @@ const Folders = () => {
     folder.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const availableNotes = allNotes.filter(note => 
-    !selectedFolder?.note_ids.includes(note.id)
-  );
-
   return (
     <div className="min-h-screen bg-background flex">
       <DashboardSidebar />
@@ -214,80 +181,87 @@ const Folders = () => {
       <div className="flex-1 flex flex-col">
         <DashboardHeader 
           title="Subjects" 
-          subtitle="Organize your notes into subject collections"
+          subtitle="Organize your notes into folders"
           showSearch={false}
         />
 
         <main className="flex-1 p-8 overflow-y-auto">
           <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex items-center gap-4">
-              <div className="relative flex-1">
+            {/* Search and Create Button */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Search subjects..."
+                  placeholder="Search folders..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 bg-card border-border"
                 />
               </div>
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Folder
+              <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+                <Plus className="w-4 h-4" />
+                New Folder
               </Button>
             </div>
 
+            {/* Folders Grid */}
             {isLoading ? (
               <div className="text-center py-10 text-muted-foreground">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
                 <p>Loading folders...</p>
               </div>
             ) : filteredFolders.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground bg-card rounded-xl border border-border">
+              <div className="text-center py-12 bg-card rounded-xl border border-border">
                 <FolderOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-                <p className="text-lg font-medium mb-2">
-                  {searchQuery ? "No folders found" : "No folders yet"}
-                </p>
-                <p className="text-sm mb-4">
-                  {searchQuery ? "Try a different search term" : "Create a folder to organize your notes"}
-                </p>
-                {!searchQuery && (
-                  <Button onClick={() => setShowCreateDialog(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Your First Folder
-                  </Button>
+                {searchQuery ? (
+                  <>
+                    <p className="text-lg font-medium mb-2">No folders found</p>
+                    <p className="text-sm text-muted-foreground mb-4">Try a different search term</p>
+                    <Button onClick={() => setSearchQuery("")} variant="outline">
+                      Clear Search
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-medium mb-2">No folders yet</p>
+                    <p className="text-sm text-muted-foreground mb-4">Create your first folder to organize notes</p>
+                    <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+                      <Plus className="w-4 h-4" />
+                      Create Folder
+                    </Button>
+                  </>
                 )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredFolders.map((folder) => (
+                {filteredFolders.map((folder, index) => (
                   <motion.div
                     key={folder.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-card border border-border rounded-xl p-6 hover:shadow-lg transition-shadow cursor-pointer group relative"
                     onClick={() => handleFolderClick(folder)}
-                    className="bg-card border border-border rounded-xl p-6 hover:border-primary/50 transition-colors cursor-pointer"
                   >
                     <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <FolderOpen className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-foreground">{folder.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {folder.note_ids.length} note{folder.note_ids.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <FolderOpen className="w-6 h-6 text-primary" />
                       </div>
-                      
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            openAddNotesDialog(folder, e as any);
+                          }}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Notes
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => {
                             e.stopPropagation();
                             setRenamingFolder(folder);
@@ -309,15 +283,10 @@ const Folders = () => {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={(e) => openAddNotesDialog(folder, e)}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Notes
-                    </Button>
+                    <h3 className="font-semibold text-lg mb-2">{folder.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {folder.note_ids.length} note{folder.note_ids.length !== 1 ? 's' : ''}
+                    </p>
                   </motion.div>
                 ))}
               </div>
@@ -326,110 +295,71 @@ const Folders = () => {
         </main>
       </div>
 
-      {/* Dialogs remain the same */}
+      {/* Create Folder Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create New Folder</DialogTitle>
-            <DialogDescription>Enter a name for your new folder</DialogDescription>
+            <DialogDescription>
+              Enter a name for your new folder
+            </DialogDescription>
           </DialogHeader>
-          <Input
-            placeholder="Folder name"
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreateFolder}>Create</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!renamingFolder} onOpenChange={() => setRenamingFolder(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename Folder</DialogTitle>
-            <DialogDescription>Enter a new name for this folder</DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="Folder name"
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleRenameFolder()}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setRenamingFolder(null)}>Cancel</Button>
-            <Button onClick={handleRenameFolder}>Rename</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showAddNotesDialog} onOpenChange={setShowAddNotesDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Add Notes to "{selectedFolder?.name}"</DialogTitle>
-            <DialogDescription>Select notes to add to this folder</DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-2 overflow-y-auto max-h-96">
-            {availableNotes.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                All notes are already in this folder
-              </p>
-            ) : (
-              availableNotes.map(note => (
-                <div
-                  key={note.id}
-                  onClick={() => toggleNoteSelection(note.id)}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedNoteIds.includes(note.id)
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      selectedNoteIds.includes(note.id)
-                        ? 'border-primary bg-primary'
-                        : 'border-muted-foreground'
-                    }`}>
-                      {selectedNoteIds.includes(note.id) && (
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="font-medium">{note.title}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="flex justify-between items-center pt-4 border-t">
-            <p className="text-sm text-muted-foreground">
-              {selectedNoteIds.length} note{selectedNoteIds.length !== 1 ? 's' : ''} selected
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowAddNotesDialog(false)}>Cancel</Button>
-              <Button 
-                onClick={handleAddNotesToFolder}
-                disabled={selectedNoteIds.length === 0}
-              >
-                Add {selectedNoteIds.length > 0 && `(${selectedNoteIds.length})`}
+          <div className="space-y-4">
+            <Input
+              placeholder="Folder name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setShowCreateDialog(false);
+                setNewFolderName("");
+              }}>
+                Cancel
               </Button>
+              <Button onClick={handleCreateFolder}>Create</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deletingFolder} onOpenChange={() => setDeletingFolder(null)}>
+      {/* Rename Folder Dialog */}
+      <Dialog open={!!renamingFolder} onOpenChange={(open) => !open && setRenamingFolder(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+            <DialogDescription>
+              Enter a new name for this folder
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder="Folder name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleRenameFolder()}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setRenamingFolder(null);
+                setNewFolderName("");
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleRenameFolder}>Rename</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Folder Confirmation */}
+      <AlertDialog open={!!deletingFolder} onOpenChange={(open) => !open && setDeletingFolder(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Folder?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Folder</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deletingFolder?.name}"? Notes will not be deleted.
+              Are you sure you want to delete "{deletingFolder?.name}"? This will not delete the notes inside.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -440,6 +370,53 @@ const Folders = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add Notes Dialog */}
+      <Dialog open={showAddNotesDialog} onOpenChange={setShowAddNotesDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Notes to "{selectedFolder?.name}"</DialogTitle>
+            <DialogDescription>
+              Select notes to add to this folder
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {allNotes.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No notes available</p>
+            ) : (
+              allNotes.map(note => (
+                <div
+                  key={note.id}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer"
+                  onClick={() => toggleNoteSelection(note.id)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedNoteIds.includes(note.id)}
+                    onChange={() => toggleNoteSelection(note.id)}
+                    className="w-4 h-4"
+                  />
+                  <span className="flex-1">{note.title}</span>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => {
+              setShowAddNotesDialog(false);
+              setSelectedNoteIds([]);
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddNotesToFolder}
+              disabled={selectedNoteIds.length === 0}
+            >
+              Add {selectedNoteIds.length > 0 && `(${selectedNoteIds.length})`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
