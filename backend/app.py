@@ -61,7 +61,24 @@ app.secret_key = os.getenv('SECRET_KEY', 'super_secret_dev_key_123')
 
 # CORS configuration - update for Railway deployment
 frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
-CORS(app, supports_credentials=True, origins=[frontend_url, "http://localhost:5173"])
+CORS(app, 
+     supports_credentials=True, 
+     origins=[frontend_url, "http://localhost:5173"],
+     allow_headers=["Content-Type", "Authorization"],
+     expose_headers=["Set-Cookie"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+
+bcrypt = Bcrypt(app)
+
+# Session configuration for production
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='None',  # Critical for cross-origin cookies
+    PERMANENT_SESSION_LIFETIME=604800,  # 7 days
+)
+
+app.secret_key = os.getenv('SECRET_KEY', 'super_secret_dev_key_123')
 
 bcrypt = Bcrypt(app)
 
