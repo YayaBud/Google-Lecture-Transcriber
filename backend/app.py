@@ -510,22 +510,29 @@ def google_login_callback():
         # ✅ Set session for desktop browsers
         session['user_id'] = str(user_id)
         session.permanent = True
+        
+        # 🔍 DEBUG: Log session info
+        print(f"🔍 Session set: user_id={session.get('user_id')}")
+        print(f"🔍 Session keys: {list(session.keys())}")
 
         # ✅ Create JWT token for mobile/all platforms
         token = create_access_token(str(user_id))
 
         print(f"✅ User {email} logged in successfully via Google OAuth!")
         print(f"✅ Generated token for user: {str(user_id)}")
+        print(f"🔍 Token (first 50 chars): {token[:50]}...")
 
         # ✅ Redirect with token in URL for mobile compatibility
-        return redirect(f"{FRONTEND_REDIRECT}/dashboard?token={token}")
+        redirect_url = f"{FRONTEND_REDIRECT}/dashboard?token={token}"
+        print(f"🔍 Redirecting to: {redirect_url}")
+        
+        return redirect(redirect_url)
 
     except Exception as e:
         print(f"❌ OAuth callback error: {str(e)}")
         import traceback
         traceback.print_exc()
         return redirect(f"{FRONTEND_REDIRECT}/login?error=auth_failed")
-
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -666,6 +673,52 @@ def logout():
     print("✅ User logged out")
     return jsonify({'success': True, 'message': 'Logged out successfully'})
 
+# Add this route after the /auth/status route
+
+@app.route('/auth/verify-token', methods=['POST'])
+def verify_token_endpoint():
+    """Verify a JWT token and return user info - for handling OAuth redirects"""
+    try:
+        data = request.json
+        token = data.get('token')
+        
+        if not token:
+            return jsonify({'error': 'Token required'}), 400
+        
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+        
+        user_id = payload['user_id']
+        user = users_collection.find_one({'_id': ObjectId(user_id)})
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Also set session as backup
+        session['user_id'] = user_id
+        session.permanent = True
+        
+        print(f"✅ Token verified for user: {user_id}")
+        
+        return jsonify({
+            'success': True,
+            'authenticated': True,
+            'token': token,  # Return the token back
+            'user': {
+                'id': str(user['_id']),
+                'email': user.get('email'),
+                'first_name': user.get('first_name'),
+                'last_name': user.get('last_name'),
+                'name': f"{user.get('first_name', '')} {user.get('last_name', '')}",
+                'auth_provider': user.get('auth_provider', 'local'),
+                'has_google_auth': 'google_credentials' in user
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ Error verifying token: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/me', methods=['GET'])
 def get_current_user():

@@ -1,4 +1,6 @@
-const API_URL = 'https://google-lecture-transcriber-production.up.railway.app';
+const API_URL = import.meta.env.VITE_API_URL || 'https://google-lecture-transcriber-production.up.railway.app';
+
+console.log('🌐 API URL configured:', API_URL);
 
 interface LoginData {
   email: string;
@@ -17,13 +19,19 @@ const TOKEN_KEY = 'auth_token';
 
 export const tokenManager = {
   set(token: string) {
+    console.log('💾 Storing token in localStorage');
     localStorage.setItem(TOKEN_KEY, token);
+    console.log('✅ Token stored successfully');
   },
   get(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(TOKEN_KEY);
+    console.log('🔍 Getting token from localStorage:', token ? '✅ Found' : '❌ Not found');
+    return token;
   },
   remove() {
+    console.log('🗑️ Removing token from localStorage');
     localStorage.removeItem(TOKEN_KEY);
+    console.log('✅ Token removed');
   }
 };
 
@@ -36,6 +44,9 @@ function getAuthHeaders(): HeadersInit {
   const token = tokenManager.get();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+    console.log('🔑 Authorization header added');
+  } else {
+    console.log('⚠️ No token available for Authorization header');
   }
   
   return headers;
@@ -44,6 +55,8 @@ function getAuthHeaders(): HeadersInit {
 // ✅ Helper for authenticated requests
 async function authFetch(url: string, options: RequestInit = {}) {
   const token = tokenManager.get();
+  console.log('📡 Making authenticated request to:', url);
+  console.log('🔐 Token available:', !!token);
   
   const config: RequestInit = {
     ...options,
@@ -54,139 +67,269 @@ async function authFetch(url: string, options: RequestInit = {}) {
     }
   };
   
-  const response = await fetch(url, config);
-  
-  // If 401, token might be expired - redirect to login
-  if (response.status === 401) {
-    tokenManager.remove();
-    window.location.href = '/login';
-    throw new Error('Authentication required');
+  try {
+    const response = await fetch(url, config);
+    console.log(`📥 Response from ${url}:`, response.status, response.statusText);
+    
+    // If 401, token might be expired - redirect to login
+    if (response.status === 401) {
+      console.error('❌ 401 Unauthorized - Token expired or invalid');
+      tokenManager.remove();
+      
+      // Don't redirect if already on login page
+      if (!window.location.pathname.includes('/login')) {
+        console.log('🔄 Redirecting to login...');
+        window.location.href = '/login';
+      }
+      throw new Error('Authentication required');
+    }
+    
+    return response;
+  } catch (error) {
+    console.error('❌ Network error during authFetch:', error);
+    throw error;
   }
-  
-  return response;
 }
 
 export const api = {
   // Auth endpoints
   async register(data: RegisterData) {
-    const response = await fetch(`${API_URL}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(data)
-    });
-    const json = await response.json();
-    
-    // ✅ Store token if provided
-    if (json.token) {
-      tokenManager.set(json.token);
+    console.log('📝 Registering user:', data.email);
+    try {
+      const response = await fetch(`${API_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      const json = await response.json();
+      console.log('📥 Register response:', json);
+      
+      // ✅ Store token if provided
+      if (json.token) {
+        console.log('✅ Token received from registration');
+        tokenManager.set(json.token);
+      } else {
+        console.warn('⚠️ No token in registration response');
+      }
+      
+      return { response, data: json };
+    } catch (error) {
+      console.error('❌ Registration error:', error);
+      throw error;
     }
-    
-    return { response, data: json };
   },
 
   async login(data: LoginData) {
-    const response = await fetch(`${API_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(data)
-    });
-    const json = await response.json();
-    
-    // ✅ Store token if provided
-    if (json.token) {
-      tokenManager.set(json.token);
+    console.log('🔐 Logging in user:', data.email);
+    try {
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      const json = await response.json();
+      console.log('📥 Login response:', json);
+      
+      // ✅ Store token if provided
+      if (json.token) {
+        console.log('✅ Token received from login');
+        tokenManager.set(json.token);
+      } else {
+        console.warn('⚠️ No token in login response');
+      }
+      
+      return { response, data: json };
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      throw error;
     }
-    
-    return { response, data: json };
   },
 
   async logout() {
-    const response = await authFetch(`${API_URL}/auth/logout`);
-    tokenManager.remove(); // ✅ Clear token on logout
-    return await response.json();
+    console.log('👋 Logging out...');
+    try {
+      const response = await authFetch(`${API_URL}/auth/logout`);
+      tokenManager.remove(); // ✅ Clear token on logout
+      console.log('✅ Logout successful');
+      return await response.json();
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+      // Still remove token even if request fails
+      tokenManager.remove();
+      throw error;
+    }
   },
 
   async getAuthStatus() {
-    const response = await authFetch(`${API_URL}/auth/status`);
-    return await response.json();
+    console.log('🔍 Checking auth status...');
+    try {
+      const response = await authFetch(`${API_URL}/auth/status`);
+      const data = await response.json();
+      console.log('📥 Auth status:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Auth status check failed:', error);
+      throw error;
+    }
   },
 
   googleLogin() {
+    console.log('🔐 Redirecting to Google OAuth...');
     window.location.href = `${API_URL}/auth/google/login`;
   },
 
   // Notes endpoints
   async getNotes() {
-    const response = await authFetch(`${API_URL}/notes`);
-    return await response.json();
+    console.log('📚 Fetching notes...');
+    try {
+      const response = await authFetch(`${API_URL}/notes`);
+      const data = await response.json();
+      console.log('✅ Notes fetched:', data.notes?.length || 0);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to fetch notes:', error);
+      throw error;
+    }
   },
 
   async createNote(title: string, preview: string) {
-    const response = await authFetch(`${API_URL}/notes`, {
-      method: 'POST',
-      body: JSON.stringify({ title, preview })
-    });
-    return await response.json();
+    console.log('➕ Creating note:', title);
+    try {
+      const response = await authFetch(`${API_URL}/notes`, {
+        method: 'POST',
+        body: JSON.stringify({ title, preview })
+      });
+      const data = await response.json();
+      console.log('✅ Note created:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to create note:', error);
+      throw error;
+    }
   },
 
   async updateNote(noteId: string, title: string) {
-    const response = await authFetch(`${API_URL}/notes/${noteId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ title })
-    });
-    return await response.json();
+    console.log('✏️ Updating note:', noteId);
+    try {
+      const response = await authFetch(`${API_URL}/notes/${noteId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title })
+      });
+      const data = await response.json();
+      console.log('✅ Note updated:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to update note:', error);
+      throw error;
+    }
   },
 
   async deleteNote(noteId: string) {
-    const response = await authFetch(`${API_URL}/notes/${noteId}`, {
-      method: 'DELETE'
-    });
-    return await response.json();
+    console.log('🗑️ Deleting note:', noteId);
+    try {
+      const response = await authFetch(`${API_URL}/notes/${noteId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      console.log('✅ Note deleted:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to delete note:', error);
+      throw error;
+    }
   },
 
   async toggleFavorite(noteId: string) {
-    const response = await authFetch(`${API_URL}/notes/${noteId}/favorite`, {
-      method: 'POST'
-    });
-    return await response.json();
+    console.log('⭐ Toggling favorite:', noteId);
+    try {
+      const response = await authFetch(`${API_URL}/notes/${noteId}/favorite`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      console.log('✅ Favorite toggled:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to toggle favorite:', error);
+      throw error;
+    }
   },
 
   // Folders endpoints
   async getFolders() {
-    const response = await authFetch(`${API_URL}/folders`);
-    return await response.json();
+    console.log('📁 Fetching folders...');
+    try {
+      const response = await authFetch(`${API_URL}/folders`);
+      const data = await response.json();
+      console.log('✅ Folders fetched:', data.folders?.length || 0);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to fetch folders:', error);
+      throw error;
+    }
   },
 
   async createFolder(name: string) {
-    const response = await authFetch(`${API_URL}/folders`, {
-      method: 'POST',
-      body: JSON.stringify({ name, note_ids: [] })
-    });
-    return await response.json();
+    console.log('➕ Creating folder:', name);
+    try {
+      const response = await authFetch(`${API_URL}/folders`, {
+        method: 'POST',
+        body: JSON.stringify({ name, note_ids: [] })
+      });
+      const data = await response.json();
+      console.log('✅ Folder created:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to create folder:', error);
+      throw error;
+    }
   },
 
   async renameFolder(folderId: string, name: string) {
-    const response = await authFetch(`${API_URL}/folders/${folderId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ name })
-    });
-    return await response.json();
+    console.log('✏️ Renaming folder:', folderId);
+    try {
+      const response = await authFetch(`${API_URL}/folders/${folderId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name })
+      });
+      const data = await response.json();
+      console.log('✅ Folder renamed:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to rename folder:', error);
+      throw error;
+    }
   },
 
   async deleteFolder(folderId: string) {
-    const response = await authFetch(`${API_URL}/folders/${folderId}`, {
-      method: 'DELETE'
-    });
-    return await response.json();
+    console.log('🗑️ Deleting folder:', folderId);
+    try {
+      const response = await authFetch(`${API_URL}/folders/${folderId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      console.log('✅ Folder deleted:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to delete folder:', error);
+      throw error;
+    }
   },
 
   async addNotesToFolder(folderId: string, noteIds: string[]) {
-    const response = await authFetch(`${API_URL}/folders/${folderId}/notes`, {
-      method: 'POST',
-      body: JSON.stringify({ note_ids: noteIds })
-    });
-    return await response.json();
+    console.log('📌 Adding notes to folder:', folderId, noteIds);
+    try {
+      const response = await authFetch(`${API_URL}/folders/${folderId}/notes`, {
+        method: 'POST',
+        body: JSON.stringify({ note_ids: noteIds })
+      });
+      const data = await response.json();
+      console.log('✅ Notes added to folder:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to add notes to folder:', error);
+      throw error;
+    }
   }
 };

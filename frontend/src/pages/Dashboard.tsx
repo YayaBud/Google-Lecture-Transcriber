@@ -9,8 +9,9 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../hooks/use-toast";
 import { FileText, Clock, Star, FolderOpen, Mic, Search } from "lucide-react";
 import { Input } from "../components/ui/input";
-import { api } from '../lib/api';
+import { api, tokenManager } from '../lib/api';
 import { DebugAuth } from '../components/DebugAuth';
+
 
 interface Note {
   id: string;
@@ -21,11 +22,13 @@ interface Note {
   is_favorite?: boolean;
 }
 
+
 interface Folder {
   id: string;
   name: string;
   note_ids: string[];
 }
+
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -37,6 +40,7 @@ const container: Variants = {
     }
   }
 };
+
 
 const item: Variants = {
   hidden: { opacity: 0, y: 20 },
@@ -50,6 +54,7 @@ const item: Variants = {
   }
 };
 
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -58,29 +63,78 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // ✅ NEW: Extract and store token from URL after OAuth redirect
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    
+    if (token) {
+      console.log('✅ Token found in URL, storing in localStorage...');
+      console.log('🔑 Token preview:', token.substring(0, 30) + '...');
+      
+      // Store the token
+      tokenManager.set(token);
+      
+      // Verify token was stored
+      const storedToken = tokenManager.get();
+      console.log('✅ Token stored successfully:', !!storedToken);
+      
+      // Clean URL without reloading the page
+      window.history.replaceState({}, document.title, '/dashboard');
+      
+      toast({
+        title: "Welcome back!",
+        description: "Successfully logged in with Google.",
+      });
+    } else {
+      console.log('ℹ️ No token in URL - checking for existing token...');
+      const existingToken = tokenManager.get();
+      console.log('Existing token found:', !!existingToken);
+    }
+  }, []); // Run once on component mount
+
   const fetchData = async () => {
     try {
+      console.log('📡 Fetching notes and folders...');
       const [notesData, foldersData] = await Promise.all([
         api.getNotes(),
         api.getFolders()
       ]);
 
       if (notesData.success) {
+        console.log('✅ Notes fetched:', notesData.notes.length);
         setNotes(notesData.notes);
       }
       if (foldersData.success) {
+        console.log('✅ Folders fetched:', foldersData.folders.length);
         setFolders(foldersData.folders);
       }
     } catch (error) {
-      console.error("Failed to fetch data", error);
-      navigate('/login');
+      console.error("❌ Failed to fetch data:", error);
+      // Only redirect if we have no token
+      const token = tokenManager.get();
+      if (!token) {
+        console.log('❌ No token found, redirecting to login');
+        navigate('/login');
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to load data. Please try again.",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    // Small delay to ensure token is stored before fetching
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, [navigate]);
 
   const handleToggleFavorite = async (noteId: string) => {
@@ -89,26 +143,47 @@ const Dashboard = () => {
       fetchData();
     } catch (error) {
       console.error("Failed to toggle favorite", error);
+      toast({
+        title: "Error",
+        description: "Failed to toggle favorite",
+        variant: "destructive"
+      });
     }
   };
 
   const handleRename = async (noteId: string, newTitle: string) => {
     try {
       await api.updateNote(noteId, newTitle);
-      toast({ title: "Note renamed", description: "Your note has been renamed successfully." });
+      toast({ 
+        title: "Note renamed", 
+        description: "Your note has been renamed successfully." 
+      });
       fetchData();
     } catch (error) {
-      toast({ title: "Error", description: "Failed to rename note", variant: "destructive" });
+      console.error("Failed to rename note", error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to rename note", 
+        variant: "destructive" 
+      });
     }
   };
 
   const handleDelete = async (noteId: string) => {
     try {
       await api.deleteNote(noteId);
-      toast({ title: "Note deleted", description: "Your note has been deleted." });
+      toast({ 
+        title: "Note deleted", 
+        description: "Your note has been deleted." 
+      });
       fetchData();
     } catch (error) {
-      toast({ title: "Error", description: "Failed to delete note", variant: "destructive" });
+      console.error("Failed to delete note", error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to delete note", 
+        variant: "destructive" 
+      });
     }
   };
 
@@ -117,6 +192,11 @@ const Dashboard = () => {
       window.open(note.google_doc_url, '_blank');
     } else {
       console.log('Note has no Google Doc URL yet');
+      toast({
+        title: "Info",
+        description: "This note hasn't been synced to Google Docs yet.",
+        variant: "default"
+      });
     }
   };
 
