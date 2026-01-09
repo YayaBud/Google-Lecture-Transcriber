@@ -7,10 +7,7 @@ import { useState, useRef, useEffect } from "react";
 import { useToast } from "../hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
 
-
-// ✅ ADD THIS LINE
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
 
 const Record = () => {
   const { toast } = useToast();
@@ -29,7 +26,6 @@ const Record = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-
   useEffect(() => {
     return () => {
       if (timerRef.current) {
@@ -37,7 +33,6 @@ const Record = () => {
       }
     };
   }, []);
-
 
   const startRecording = async () => {
     try {
@@ -57,20 +52,17 @@ const Record = () => {
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
-
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           chunksRef.current.push(e.data);
         }
       };
 
-
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
       };
-
 
       mediaRecorder.start(1000);
       setIsRecording(true);
@@ -79,7 +71,6 @@ const Record = () => {
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
-
 
       toast({
         title: "Recording started",
@@ -93,7 +84,6 @@ const Record = () => {
       });
     }
   };
-
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
@@ -109,13 +99,11 @@ const Record = () => {
     }
   };
 
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -137,7 +125,6 @@ const Record = () => {
     }
   };
 
-
   const transcribeAudio = async () => {
     if (!audioBlob) {
       toast({
@@ -148,25 +135,20 @@ const Record = () => {
       return;
     }
 
-
     setIsTranscribing(true);
     const formData = new FormData();
     formData.append('audio', audioBlob, selectedFile?.name || 'recording.webm');
 
-
     try {
-      // ✅ UPDATED
+      // ✅ REMOVED credentials: 'include'
       const response = await fetch(`${API_URL}/transcribe`, {
         method: 'POST',
-        body: formData,
-        credentials: 'include'
+        body: formData
       });
-
 
       if (!response.ok) {
         throw new Error('Transcription failed');
       }
-
 
       const data = await response.json();
       setTranscript(data.transcript);
@@ -186,7 +168,6 @@ const Record = () => {
     }
   };
 
-
   const generateNotes = async () => {
     if (!transcript) {
       toast({
@@ -197,22 +178,18 @@ const Record = () => {
       return;
     }
 
-
     setIsGenerating(true);
     try {
-      // ✅ UPDATED
+      // ✅ REMOVED credentials: 'include'
       const response = await fetch(`${API_URL}/generate-notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript }),
-        credentials: 'include'
+        body: JSON.stringify({ transcript })
       });
-
 
       if (!response.ok) {
         throw new Error('Generation failed');
       }
-
 
       const data = await response.json();
       setNotes(data.notes);
@@ -232,7 +209,6 @@ const Record = () => {
     }
   };
 
-
   const pushToGoogleDocs = async () => {
     if (!notes) {
       toast({
@@ -243,33 +219,27 @@ const Record = () => {
       return;
     }
 
-
     setIsPushing(true);
     try {
-      // ✅ UPDATED
+      // ✅ REMOVED credentials: 'include'
       const response = await fetch(`${API_URL}/push-to-docs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           notes,
           title: `Lecture Notes ${new Date().toLocaleDateString()}`
-        }),
-        credentials: 'include'
+        })
       });
-
 
       const data = await response.json();
      
       if (data.needs_auth) {
-        // ✅ UPDATED
-        const authResponse = await fetch(`${API_URL}/auth/google`, {
-          credentials: 'include'
-        });
+        // ✅ REMOVED credentials: 'include'
+        const authResponse = await fetch(`${API_URL}/auth/google`);
         const authData = await authResponse.json();
         window.location.href = authData.auth_url;
         return;
       }
-
 
       if (data.success) {
         toast({
@@ -289,7 +259,6 @@ const Record = () => {
     }
   };
 
-
   const downloadTranscript = () => {
     if (!transcript) return;
    
@@ -304,7 +273,6 @@ const Record = () => {
     URL.revokeObjectURL(url);
   };
 
-
   const downloadNotes = () => {
     if (!notes) return;
    
@@ -318,7 +286,6 @@ const Record = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-
 
   return (
     <div className="flex h-screen bg-background">
@@ -375,11 +342,9 @@ const Record = () => {
                     </div>
                   </div>
 
-
                   <div className="flex items-center justify-center">
                     <span className="text-muted-foreground font-medium">OR</span>
                   </div>
-
 
                   <div className="flex-1">
                     <div
@@ -410,7 +375,6 @@ const Record = () => {
                   </div>
                 </div>
 
-
                 {audioBlob && (
                   <div className="flex justify-center pt-4 border-t">
                     <Button
@@ -435,7 +399,6 @@ const Record = () => {
                 )}
               </CardContent>
             </Card>
-
 
             {/* Transcript Card */}
             {transcript && (
@@ -480,7 +443,6 @@ const Record = () => {
               </Card>
             )}
 
-
             {/* Notes Card */}
             {notes && (
               <Card>
@@ -503,7 +465,7 @@ const Record = () => {
                       >
                         {isPushing ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-4 h-4" animate-spin" />
                             Pushing...
                           </>
                         ) : (
@@ -529,6 +491,5 @@ const Record = () => {
     </div>
   );
 };
-
 
 export default Record;
