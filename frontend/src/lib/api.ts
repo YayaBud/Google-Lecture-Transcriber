@@ -60,29 +60,40 @@ const getAuthHeaders = () => {
 export const api = {
   // Auth endpoints
   login: async (formData: LoginData) => {
+    console.log('🚀 [API] Starting login request...');
+    
     const response = await fetch(`${API_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
       credentials: 'include'
     });
+    
+    console.log('📡 [API] Response status:', response.status);
+    console.log('📡 [API] Response OK:', response.ok);
+    
     const data = await response.json();
     
-    // 🐛 DEBUG LOGS
-    console.log('📱 Login response:', data);
-    console.log('🔑 Token received:', data.token ? `${data.token.substring(0, 20)}...` : 'NONE');
+    console.log('📱 [API] Login response data:', data);
+    console.log('🔑 [API] Token received:', data.token ? `${data.token.substring(0, 20)}...` : 'NONE');
+    console.log('✅ [API] Success flag:', data.success);
+    console.log('👤 [API] User data:', data.user);
     
     if (data.token) {
       storeToken(data.token);
-      console.log('✅ Verification - Token exists:', !!getToken());
+      const storedToken = getToken();
+      console.log('💾 [API] Token stored successfully:', !!storedToken);
+      console.log('🔍 [API] Can retrieve token:', storedToken ? `${storedToken.substring(0, 20)}...` : 'FAILED');
     } else {
-      console.error('❌ No token in response!');
+      console.error('❌ [API] No token in response!');
     }
     
     return { response, data };
   },
 
   register: async (formData: SignupData) => {
+    console.log('🚀 [API] Starting registration...');
+    
     const response = await fetch(`${API_URL}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -91,35 +102,53 @@ export const api = {
     });
     const data = await response.json();
     
+    console.log('📱 [API] Register response:', data);
+    
     if (data.token) {
       storeToken(data.token);
+      console.log('✅ [API] Registration token stored');
     }
     
     return { response, data };
   },
 
   googleLogin: () => {
+    console.log('🔄 [API] Redirecting to Google OAuth...');
     window.location.href = `${API_URL}/auth/google/login`;
   },
 
   getAuthStatus: async () => {
     const token = getToken();
-    console.log('🔍 Checking auth with token:', token ? 'EXISTS' : 'MISSING');
+    console.log('🔍 [API] Checking auth status...');
+    console.log('🔍 [API] Token exists:', token ? 'YES' : 'NO');
+    
+    if (token) {
+      console.log('🔍 [API] Token preview:', token.substring(0, 30) + '...');
+    }
     
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      console.log('🔍 [API] Sending Authorization header');
+    } else {
+      console.log('⚠️ [API] No token to send');
     }
     
     const response = await fetch(`${API_URL}/auth/status`, {
       credentials: 'include',
       headers
     });
-    return await response.json();
+    
+    const data = await response.json();
+    console.log('🔍 [API] Auth status response:', data);
+    
+    return data;
   },
 
   logout: async () => {
+    console.log('👋 [API] Logging out...');
     removeToken();
+    
     const response = await fetch(`${API_URL}/auth/logout`, {
       credentials: 'include'
     });
