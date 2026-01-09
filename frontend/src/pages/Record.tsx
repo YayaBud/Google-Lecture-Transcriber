@@ -47,20 +47,21 @@ const Record = () => {
   const analyzeVolume = () => {
     if (!analyserRef.current) return;
 
-    const bufferLength = analyserRef.current.frequencyBinCount;
+    const bufferLength = analyserRef.current.fftSize;
     const dataArray = new Uint8Array(bufferLength);
     
-    analyserRef.current.getByteFrequencyData(dataArray);
+    analyserRef.current.getByteTimeDomainData(dataArray);
 
-    // Calculate average volume from frequency data
+    // Calculate RMS (Root Mean Square) volume
     let sum = 0;
     for (let i = 0; i < bufferLength; i++) {
-      sum += dataArray[i];
+      const normalized = (dataArray[i] - 128) / 128;
+      sum += normalized * normalized;
     }
-    const average = sum / bufferLength;
+    const rms = Math.sqrt(sum / bufferLength);
     
-    // Normalize to 0-100 range with better sensitivity
-    const normalizedVolume = Math.min(100, (average / 128) * 100);
+    // Scale and clamp volume to 0-100 with higher sensitivity
+    const normalizedVolume = Math.min(100, Math.max(0, rms * 500));
     
     setVolume(normalizedVolume);
     
@@ -75,8 +76,8 @@ const Record = () => {
         audio: {
           channelCount: 1,
           sampleRate: 48000,
-          echoCancellation: true,
-          noiseSuppression: true,
+          echoCancellation: false,
+          noiseSuppression: false,
           autoGainControl: false,
         } 
       });
@@ -85,8 +86,10 @@ const Record = () => {
       audioContextRef.current = new AudioContext();
       const source = audioContextRef.current.createMediaStreamSource(stream);
       analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 256;
-      analyserRef.current.smoothingTimeConstant = 0.8;
+      analyserRef.current.fftSize = 2048;
+      analyserRef.current.smoothingTimeConstant = 0.3;
+      analyserRef.current.minDecibels = -90;
+      analyserRef.current.maxDecibels = -10;
       source.connect(analyserRef.current);
       
       const mediaRecorder = new MediaRecorder(stream, {
