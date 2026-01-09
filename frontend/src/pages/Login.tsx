@@ -71,11 +71,11 @@ const Login = () => {
                   type="button"
                   className="text-sm font-mono px-3 py-1 rounded-lg bg-black/80 border border-primary/30 cursor-pointer shadow-sm transition-all duration-300 hover:scale-105 hover:bg-primary/30"
                   onClick={() => {
-                    navigator.clipboard.writeText('soulera897@gmail.com');
+                    navigator.clipboard.writeText('soulera444@gmail.com');
                     toast({ title: "Copied!", description: "Email copied to clipboard" });
                   }}
                 >
-                  soulera897@gmail.com
+                  soulera444@gmail.com(use recovery mail as chaudharyayush4121@gmail.com if it asks)
                 </button>
               </div>
               <div className="flex gap-3 items-center w-full justify-center">
@@ -88,7 +88,7 @@ const Login = () => {
                     toast({ title: "Copied!", description: "Password copied to clipboard" });
                   }}
                 >
-                  Souleragonnawin
+                  Souleragonnawin(use gmail option do not login through normal option)
                 </button>
               </div>
               <span className="text-xs text-muted-foreground mt-2 text-center">
