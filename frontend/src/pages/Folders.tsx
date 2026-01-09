@@ -151,14 +151,13 @@ const Folders = () => {
   };
 
   const openAddNotesDialog = (folder: Folder, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent folder click
+    e.stopPropagation();
     setSelectedFolder(folder);
     setSelectedNoteIds([]);
     setShowAddNotesDialog(true);
   };
 
   const handleFolderClick = (folder: Folder) => {
-    // Navigate to folder detail page with folder data
     navigate(`/dashboard/folders/${folder.id}`, { state: { folder } });
   };
 
@@ -254,7 +253,10 @@ const Folders = () => {
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent 
+                          align="end"
+                          className="bg-card border-border shadow-xl"
+                        >
                           <DropdownMenuItem onClick={(e) => {
                             e.stopPropagation();
                             openAddNotesDialog(folder, e as any);
@@ -275,7 +277,7 @@ const Folders = () => {
                               e.stopPropagation();
                               setDeletingFolder(folder);
                             }}
-                            className="text-destructive"
+                            className="text-red-500 focus:text-red-600 focus:bg-red-500/10"
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete
@@ -353,7 +355,7 @@ const Folders = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Folder Confirmation */}
+      {/* Delete Folder Confirmation - FIXED RED BUTTON */}
       <AlertDialog open={!!deletingFolder} onOpenChange={(open) => !open && setDeletingFolder(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -364,7 +366,10 @@ const Folders = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteFolder} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction 
+              onClick={handleDeleteFolder} 
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
