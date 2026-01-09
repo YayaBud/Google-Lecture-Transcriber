@@ -5,7 +5,7 @@ import { Mic, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useToast } from "../hooks/use-toast";
-import { api } from '../lib/api';
+import { api, tokenManager } from '../lib/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -22,16 +22,23 @@ const Login = () => {
     try {
       const { response, data } = await api.login(formData);
       
-      if (response.ok) {
+      if (response.ok && data.success) {
+        console.log('✅ Login successful, token stored');
+        
         toast({
           title: "Welcome back!",
           description: "Logged in successfully.",
         });
-        navigate('/dashboard');
+        
+        // Small delay to ensure token is stored
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 100);
       } else {
         throw new Error(data.error || 'Login failed');
       }
     } catch (error: any) {
+      console.error('❌ Login error:', error);
       toast({
         title: "Error",
         description: error.message,

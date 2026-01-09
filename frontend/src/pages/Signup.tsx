@@ -12,10 +12,10 @@ const Signup = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
     email: '',
-    password: ''
+    password: '',
+    firstName: '',
+    lastName: ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,16 +24,23 @@ const Signup = () => {
     try {
       const { response, data } = await api.register(formData);
       
-      if (response.ok) {
+      if (response.ok && data.success) {
+        console.log('✅ Registration successful, token stored');
+        
         toast({
           title: "Account created!",
           description: "Welcome to NoteFlow.",
         });
-        navigate('/dashboard');
+        
+        // Small delay to ensure token is stored
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 100);
       } else {
         throw new Error(data.error || 'Registration failed');
       }
     } catch (error: any) {
+      console.error('❌ Registration error:', error);
       toast({
         title: "Error",
         description: error.message,
@@ -59,10 +66,10 @@ const Signup = () => {
         <div className="bg-card border border-border rounded-3xl p-8 shadow-xl">
           <div className="flex flex-col items-center mb-8">
             <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shadow-lg mb-4">
-              <Mic className="w-6 h-6 text-white" />
+              <Mic className="w-6 h-6 text-primary-foreground" />
             </div>
             <h1 className="font-display text-2xl font-bold text-foreground">Create Account</h1>
-            <p className="text-muted-foreground text-sm">Start taking smarter notes today</p>
+            <p className="text-muted-foreground text-sm">Get started with NoteFlow</p>
           </div>
 
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -71,18 +78,22 @@ const Signup = () => {
                 <label className="text-sm font-medium text-foreground">First Name</label>
                 <Input 
                   placeholder="John" 
+                  type="text" 
                   required 
                   value={formData.firstName}
                   onChange={e => setFormData({...formData, firstName: e.target.value})}
+                  className="bg-background border-border"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Last Name</label>
                 <Input 
                   placeholder="Doe" 
+                  type="text" 
                   required 
                   value={formData.lastName}
                   onChange={e => setFormData({...formData, lastName: e.target.value})}
+                  className="bg-background border-border"
                 />
               </div>
             </div>
@@ -94,28 +105,30 @@ const Signup = () => {
                 required 
                 value={formData.email}
                 onChange={e => setFormData({...formData, email: e.target.value})}
+                className="bg-background border-border"
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Password</label>
               <Input 
-                placeholder="Create a password" 
+                placeholder="••••••••" 
                 type="password" 
                 required 
                 value={formData.password}
                 onChange={e => setFormData({...formData, password: e.target.value})}
+                className="bg-background border-border"
               />
             </div>
             
             <Button 
-              type="submit" 
+              type="submit"
               disabled={isLoading}
-              className="w-full h-11 text-base rounded-xl bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-primary/25 transition-all duration-300 hover:scale-[1.02]"
+              className="w-full h-11 text-base rounded-xl shadow-lg transition-all duration-300 hover:scale-[1.02]"
             >
-              {isLoading ? "Creating account..." : "Sign Up"}
+              {isLoading ? "Creating Account..." : "Create Account"}
             </Button>
           </form>
-          
+
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-border" />
@@ -128,7 +141,7 @@ const Signup = () => {
           <Button 
             type="button"
             variant="outline" 
-            className="w-full h-11 rounded-xl border-border hover:bg-accent hover:text-accent-foreground transition-all duration-300"
+            className="w-full h-11 rounded-xl transition-all duration-300 hover:bg-accent"
             onClick={() => api.googleLogin()}
           >
             <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
@@ -136,7 +149,7 @@ const Signup = () => {
             </svg>
             Google
           </Button>
-          
+
           <div className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link to="/login" className="text-primary font-semibold hover:underline">
