@@ -8,6 +8,7 @@ import { useToast } from "../hooks/use-toast";
 import { api } from '../lib/api';
 
 
+
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -16,6 +17,7 @@ const Login = () => {
     email: '',
     password: ''
   });
+
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,6 +47,7 @@ const Login = () => {
   };
 
 
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 transition-colors duration-500">
       <motion.div 
@@ -56,6 +59,7 @@ const Login = () => {
           <ArrowLeft className="w-4 h-4" />
           Back to Home
         </Link>
+
 
 
         <div className="bg-card border border-border rounded-3xl p-8 shadow-xl">
@@ -121,6 +125,7 @@ const Login = () => {
           </div>
 
 
+
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Email</label>
@@ -155,6 +160,7 @@ const Login = () => {
           </form>
 
 
+
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-border" />
@@ -163,6 +169,7 @@ const Login = () => {
               <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
             </div>
           </div>
+
 
 
           <Button 
@@ -178,6 +185,7 @@ const Login = () => {
           </Button>
 
 
+
           <div className="mt-6 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
             <Link to="/signup" className="text-primary font-semibold hover:underline">
@@ -189,6 +197,7 @@ const Login = () => {
     </div>
   );
 };
+
 
 
 export default Login;
