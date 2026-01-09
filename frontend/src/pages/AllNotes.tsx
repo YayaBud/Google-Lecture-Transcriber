@@ -520,7 +520,7 @@ const AllNotes = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={bulkDeleteNotes} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={bulkDeleteNotes} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
