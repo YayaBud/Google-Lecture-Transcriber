@@ -373,7 +373,7 @@ const Dashboard = () => {
         </main>
 
         {/* 🐛 DEBUG COMPONENT - Shows auth info at bottom of screen */}
-        <DebugAuth />
+        {/*<DebugAuth />*/}
       </div>
     </div>
   );
