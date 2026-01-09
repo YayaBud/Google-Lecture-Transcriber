@@ -44,27 +44,29 @@ const Record = () => {
     };
   }, []);
 
-  // ✅ FIXED: Better volume analysis using time domain data
   const analyzeVolume = () => {
-    if (!analyserRef.current || !isRecording) return;
+    if (!analyserRef.current) return;
 
-    const bufferLength = analyserRef.current.fftSize;
+    const bufferLength = analyserRef.current.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
-    analyserRef.current.getByteTimeDomainData(dataArray);
+    
+    analyserRef.current.getByteFrequencyData(dataArray);
 
-    // Calculate RMS (Root Mean Square) volume
+    // Calculate average volume from frequency data
     let sum = 0;
     for (let i = 0; i < bufferLength; i++) {
-      const normalized = (dataArray[i] - 128) / 128;
-      sum += normalized * normalized;
+      sum += dataArray[i];
     }
-    const rms = Math.sqrt(sum / bufferLength);
+    const average = sum / bufferLength;
     
-    // Scale and clamp volume to 0-100
-    const normalizedVolume = Math.min(100, Math.max(0, rms * 300));
+    // Normalize to 0-100 range with better sensitivity
+    const normalizedVolume = Math.min(100, (average / 128) * 100);
     
     setVolume(normalizedVolume);
-    animationFrameRef.current = requestAnimationFrame(analyzeVolume);
+    
+    if (isRecording) {
+      animationFrameRef.current = requestAnimationFrame(analyzeVolume);
+    }
   };
 
   const startRecording = async () => {
@@ -72,21 +74,19 @@ const Record = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           channelCount: 1,
-          sampleRate: 48000, // Higher sample rate for better analysis
-          echoCancellation: false, // Disable for better volume detection
-          noiseSuppression: false, // Disable for better volume detection
-          autoGainControl: false, // Disable AGC
+          sampleRate: 48000,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false,
         } 
       });
       
-      // ✅ FIXED: Set up audio analysis with better settings
+      // Set up audio analysis
       audioContextRef.current = new AudioContext();
       const source = audioContextRef.current.createMediaStreamSource(stream);
       analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 2048; // Increased for better resolution
-      analyserRef.current.smoothingTimeConstant = 0.3;
-      analyserRef.current.minDecibels = -90;
-      analyserRef.current.maxDecibels = -10;
+      analyserRef.current.fftSize = 256;
+      analyserRef.current.smoothingTimeConstant = 0.8;
       source.connect(analyserRef.current);
       
       const mediaRecorder = new MediaRecorder(stream, {
@@ -107,7 +107,6 @@ const Record = () => {
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
         
-        // Clean up audio analysis
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
         }
@@ -117,11 +116,10 @@ const Record = () => {
         setVolume(0);
       };
 
-      mediaRecorder.start(1000);
+      mediaRecorder.start(100);
       setIsRecording(true);
       setRecordingTime(0);
       
-      // Start volume analysis
       analyzeVolume();
       
       timerRef.current = setInterval(() => {
@@ -385,57 +383,119 @@ const Record = () => {
                     <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg border-border hover:border-primary/50 transition-colors">
                       {isRecording ? (
                         <div className="text-center space-y-4">
-                          {/* Circular volume visualizer */}
-                          <div className="relative w-32 h-32 mx-auto">
-                            {/* Background circle */}
-                            <svg className="absolute inset-0 w-full h-full -rotate-90">
-                              <circle
-                                cx="64"
-                                cy="64"
-                                r="60"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                className="text-red-500/20"
-                              />
-                              {/* Animated volume ring */}
-                              <circle
-                                cx="64"
-                                cy="64"
-                                r="60"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                strokeLinecap="round"
-                                className="text-red-500 transition-all duration-100"
-                                strokeDasharray={`${(volume / 100) * 377} 377`}
-                                style={{
-                                  filter: `drop-shadow(0 0 ${Math.max(2, volume / 5)}px rgb(239 68 68))`,
-                                }}
-                              />
-                            </svg>
+                          {/* Advanced Circular Visualizer */}
+                          <div className="relative w-48 h-48 mx-auto">
+                            {/* Outer glow ring */}
+                            <div 
+                              className="absolute inset-0 rounded-full blur-xl transition-all duration-150"
+                              style={{
+                                background: `radial-gradient(circle, rgba(239, 68, 68, ${volume / 200}) 0%, transparent 70%)`,
+                                transform: `scale(${1 + volume / 300})`
+                              }}
+                            />
                             
-                            {/* Inner circle with mic icon */}
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div 
-                                className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center transition-all duration-100"
+                            {/* Multiple rotating rings */}
+                            {[0, 1, 2].map((index) => (
+                              <svg 
+                                key={index}
+                                className="absolute inset-0 w-full h-full -rotate-90"
                                 style={{
-                                  transform: `scale(${1 + volume / 400})`,
-                                  boxShadow: `0 0 ${Math.max(4, volume / 2)}px rgba(239, 68, 68, 0.6)`,
+                                  animation: `spin ${6 + index * 2}s linear infinite`,
+                                  opacity: 0.3 + (volume / 300)
                                 }}
                               >
-                                <Mic className="w-10 h-10 text-red-500" />
+                                <circle
+                                  cx="96"
+                                  cy="96"
+                                  r={80 - index * 8}
+                                  fill="none"
+                                  stroke="url(#gradient)"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeDasharray={`${(volume / 100) * (502 - index * 50)} ${502 - index * 50}`}
+                                  className="transition-all duration-100"
+                                />
+                                <defs>
+                                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stopColor="#ef4444" />
+                                    <stop offset="50%" stopColor="#f97316" />
+                                    <stop offset="100%" stopColor="#eab308" />
+                                  </linearGradient>
+                                </defs>
+                              </svg>
+                            ))}
+                            
+                            {/* Center mic with pulsing effect */}
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div 
+                                className="relative w-24 h-24 rounded-full bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center shadow-2xl transition-all duration-100"
+                                style={{
+                                  transform: `scale(${1 + volume / 400})`,
+                                  boxShadow: `0 0 ${Math.max(20, volume / 2)}px rgba(239, 68, 68, 0.8), 0 0 ${Math.max(40, volume)}px rgba(239, 68, 68, 0.4)`
+                                }}
+                              >
+                                {/* Animated pulse rings */}
+                                {volume > 20 && (
+                                  <>
+                                    <div 
+                                      className="absolute inset-0 rounded-full bg-red-400/30 animate-ping"
+                                      style={{ animationDuration: '1s' }}
+                                    />
+                                    <div 
+                                      className="absolute inset-0 rounded-full bg-orange-400/20 animate-ping"
+                                      style={{ animationDuration: '1.5s' }}
+                                    />
+                                  </>
+                                )}
+                                <Mic className="w-12 h-12 text-white relative z-10" />
                               </div>
+                            </div>
+                            
+                            {/* Floating particles */}
+                            {volume > 30 && [0, 1, 2, 3, 4, 5].map((i) => (
+                              <div
+                                key={i}
+                                className="absolute w-2 h-2 bg-gradient-to-br from-red-400 to-orange-400 rounded-full"
+                                style={{
+                                  top: '50%',
+                                  left: '50%',
+                                  animation: `float-particle ${1.5 + i * 0.3}s ease-in-out infinite`,
+                                  animationDelay: `${i * 0.2}s`,
+                                  opacity: volume / 150
+                                }}
+                              />
+                            ))}
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <p className="text-4xl font-mono font-bold tracking-wider">
+                              {formatTime(recordingTime)}
+                            </p>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Recording in progress...</p>
+                              <div className="flex items-center justify-center gap-2">
+                                <div className="h-1.5 w-1.5 bg-red-500 rounded-full animate-pulse" />
+                                <p className="text-xs font-mono text-red-500">
+                                  LIVE • {Math.round(volume)}%
+                                </p>
+                              </div>
+                            </div>
+                            {/* Volume bar */}
+                            <div className="w-48 h-2 bg-muted rounded-full overflow-hidden mx-auto">
+                              <div 
+                                className="h-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 transition-all duration-100 rounded-full"
+                                style={{ width: `${volume}%` }}
+                              />
                             </div>
                           </div>
                           
-                          <div className="space-y-2">
-                            <p className="text-2xl font-mono font-bold">{formatTime(recordingTime)}</p>
-                            <p className="text-sm text-muted-foreground">Recording in progress...</p>
-                            <p className="text-xs text-red-500 font-medium">Volume: {Math.round(volume)}%</p>
-                          </div>
-                          <Button onClick={stopRecording} variant="destructive" size="lg" className="gap-2">
-                            <Square className="w-4 h-4" />
+                          <Button 
+                            onClick={stopRecording} 
+                            variant="destructive" 
+                            size="lg" 
+                            className="gap-2"
+                          >
+                            <Square className="w-4 h-4" fill="currentColor" />
                             Stop Recording
                           </Button>
                         </div>
@@ -603,6 +663,31 @@ const Record = () => {
           </div>
         </main>
       </div>
+
+      <style>{`
+        @keyframes float-particle {
+          0% {
+            transform: translate(-50%, -50%) rotate(0deg) translateX(0) scale(1);
+            opacity: 0;
+          }
+          50% {
+            opacity: 1;
+          }
+          100% {
+            transform: translate(-50%, -50%) rotate(360deg) translateX(80px) scale(0);
+            opacity: 0;
+          }
+        }
+        
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
   );
 };
