@@ -7,8 +7,6 @@ import { useState } from "react";
 import { useToast } from "../hooks/use-toast";
 import { api } from '../lib/api';
 
-
-
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -17,8 +15,6 @@ const Login = () => {
     email: '',
     password: ''
   });
-
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +42,13 @@ const Login = () => {
     }
   };
 
-
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ 
+      title: "Copied!", 
+      description: `${label} copied to clipboard` 
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 transition-colors duration-500">
@@ -60,12 +62,10 @@ const Login = () => {
           Back to Home
         </Link>
 
-
-
         <div className="bg-card border border-border rounded-3xl p-8 shadow-xl">
-          {/* Interactive test credentials info box */}
-          <div className="mb-6 flex flex-col items-center animate-fade-in">
-            <div className="bg-gradient-to-br from-primary/20 via-background to-primary/10 border border-primary/40 rounded-2xl px-6 py-5 flex flex-col items-center gap-3 shadow-xl animate-fade-in">
+          {/* Test credentials info box */}
+          <div className="mb-6 flex flex-col items-center">
+            <div className="bg-gradient-to-br from-primary/20 via-background to-primary/10 border border-primary/40 rounded-2xl px-6 py-5 flex flex-col items-center gap-3 shadow-xl w-full">
               <span className="font-semibold text-lg text-primary flex items-center gap-2">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="inline-block">
                   <path d="M12 2C7.03 2 3 6.03 3 11c0 4.97 4.03 9 9 9s9-4.03 9-9c0-4.97-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z" fill="#38bdf8"/>
@@ -73,17 +73,15 @@ const Login = () => {
                 </svg>
                 Test Login Credentials
               </span>
+              
               {/* Email Row */}
               <div className="flex flex-col gap-1 items-center w-full">
-                <div className="flex gap-3 items-center justify-center">
+                <div className="flex gap-3 items-center justify-center flex-wrap">
                   <span className="text-sm text-muted-foreground font-medium">Email:</span>
                   <button 
                     type="button"
                     className="text-sm font-mono px-3 py-1 rounded-lg bg-black/80 border border-primary/30 cursor-pointer shadow-sm transition-all duration-300 hover:scale-105 hover:bg-primary/30"
-                    onClick={() => {
-                      navigator.clipboard.writeText('soulera444@gmail.com');
-                      toast({ title: "Copied!", description: "Email copied to clipboard" });
-                    }}
+                    onClick={() => copyToClipboard('soulera444@gmail.com', 'Email')}
                   >
                     soulera444@gmail.com
                   </button>
@@ -92,17 +90,15 @@ const Login = () => {
                   Recovery email: <span className="text-primary">chaudharyayush4121@gmail.com</span>
                 </p>
               </div>
+              
               {/* Password Row */}
               <div className="flex flex-col gap-1 items-center w-full">
-                <div className="flex gap-3 items-center justify-center">
+                <div className="flex gap-3 items-center justify-center flex-wrap">
                   <span className="text-sm text-muted-foreground font-medium">Password:</span>
                   <button 
                     type="button"
                     className="text-sm font-mono px-3 py-1 rounded-lg bg-black/80 border border-primary/30 cursor-pointer shadow-sm transition-all duration-300 hover:scale-105 hover:bg-primary/30"
-                    onClick={() => {
-                      navigator.clipboard.writeText('Souleragonnawin');
-                      toast({ title: "Copied!", description: "Password copied to clipboard" });
-                    }}
+                    onClick={() => copyToClipboard('Souleragonnawin', 'Password')}
                   >
                     Souleragonnawin
                   </button>
@@ -111,11 +107,13 @@ const Login = () => {
                   ⚠️ Use Gmail option, not normal login
                 </p>
               </div>
+              
               <span className="text-xs text-muted-foreground mt-2 text-center">
                 Use these credentials to log in for testing!
               </span>
             </div>
           </div>
+
           <div className="flex flex-col items-center mb-8">
             <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shadow-lg mb-4">
               <Mic className="w-6 h-6 text-primary-foreground" />
@@ -123,8 +121,6 @@ const Login = () => {
             <h1 className="font-display text-2xl font-bold text-foreground">Welcome Back</h1>
             <p className="text-muted-foreground text-sm">Log in to your NoteFlow account</p>
           </div>
-
-
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
@@ -159,8 +155,6 @@ const Login = () => {
             </Button>
           </form>
 
-
-
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-border" />
@@ -169,8 +163,6 @@ const Login = () => {
               <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
             </div>
           </div>
-
-
 
           <Button 
             type="button"
@@ -184,8 +176,6 @@ const Login = () => {
             Google
           </Button>
 
-
-
           <div className="mt-6 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
             <Link to="/signup" className="text-primary font-semibold hover:underline">
@@ -197,7 +187,5 @@ const Login = () => {
     </div>
   );
 };
-
-
 
 export default Login;
