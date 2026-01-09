@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../hooks/use-toast";
 
-// ✅ ADD THIS LINE
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Note {
@@ -18,6 +17,13 @@ interface Note {
   is_favorite?: boolean;
 }
 
+// ✅ Helper function to get auth headers with proper typing
+const getAuthHeaders = (): HeadersInit => {
+  const token = localStorage.getItem('auth_token');
+  if (!token) return {};
+  return { 'Authorization': `Bearer ${token}` };
+};
+
 const FavoriteNotes = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -26,14 +32,16 @@ const FavoriteNotes = () => {
 
   const fetchNotes = async () => {
     try {
-      // ✅ UPDATED
       const response = await fetch(`${API_URL}/notes`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: getAuthHeaders()
       });
+      
       if (response.status === 401) {
         navigate('/login');
         return;
       }
+      
       const data = await response.json();
       if (data.success) {
         // Filter only favorite notes
@@ -53,26 +61,46 @@ const FavoriteNotes = () => {
 
   const handleToggleFavorite = async (noteId: string) => {
     try {
-      // ✅ UPDATED
-      await fetch(`${API_URL}/notes/${noteId}/favorite`, {
+      const response = await fetch(`${API_URL}/notes/${noteId}/favorite`, {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: getAuthHeaders()
       });
-      fetchNotes();
+      
+      if (response.status === 401) {
+        navigate('/login');
+        return;
+      }
+      
+      if (response.ok) {
+        fetchNotes();
+      }
     } catch (error) {
       console.error("Failed to toggle favorite", error);
+      toast({
+        title: "Error",
+        description: "Failed to update favorite status",
+        variant: "destructive"
+      });
     }
   };
 
   const handleRename = async (noteId: string, newTitle: string) => {
     try {
-      // ✅ UPDATED
       const response = await fetch(`${API_URL}/notes/${noteId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
         credentials: 'include',
         body: JSON.stringify({ title: newTitle })
       });
+      
+      if (response.status === 401) {
+        navigate('/login');
+        return;
+      }
       
       if (response.ok) {
         toast({ 
@@ -92,11 +120,16 @@ const FavoriteNotes = () => {
 
   const handleDelete = async (noteId: string) => {
     try {
-      // ✅ UPDATED
       const response = await fetch(`${API_URL}/notes/${noteId}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
+        headers: getAuthHeaders()
       });
+      
+      if (response.status === 401) {
+        navigate('/login');
+        return;
+      }
       
       if (response.ok) {
         toast({ 
