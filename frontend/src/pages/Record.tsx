@@ -140,10 +140,17 @@ const Record = () => {
     formData.append('audio', audioBlob, selectedFile?.name || 'recording.webm');
 
     try {
-      // ✅ REMOVED credentials: 'include'
+      // ✅ ADD AUTH TOKEN
+      const token = localStorage.getItem('auth_token');
+      console.log('🔐 Token:', token ? 'Present' : 'Missing');
+      
       const response = await fetch(`${API_URL}/transcribe`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        credentials: 'include',
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
       });
 
       if (!response.ok) {
@@ -158,6 +165,7 @@ const Record = () => {
         description: `Transcribed ${data.length} characters in ${data.duration}`,
       });
     } catch (error) {
+      console.error('Transcription error:', error);
       toast({
         title: "Error",
         description: "Failed to transcribe audio",
@@ -180,11 +188,17 @@ const Record = () => {
 
     setIsGenerating(true);
     try {
-      // ✅ REMOVED credentials: 'include'
+      // ✅ ADD AUTH TOKEN
+      const token = localStorage.getItem('auth_token');
+      
       const response = await fetch(`${API_URL}/generate-notes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ transcript }),
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -199,6 +213,7 @@ const Record = () => {
         description: "AI has created structured notes from your transcript",
       });
     } catch (error) {
+      console.error('Generate notes error:', error);
       toast({
         title: "Error",
         description: "Failed to generate notes",
@@ -221,21 +236,31 @@ const Record = () => {
 
     setIsPushing(true);
     try {
-      // ✅ REMOVED credentials: 'include'
+      // ✅ ADD AUTH TOKEN
+      const token = localStorage.getItem('auth_token');
+      
       const response = await fetch(`${API_URL}/push-to-docs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           notes,
           title: `Lecture Notes ${new Date().toLocaleDateString()}`
-        })
+        }),
+        credentials: 'include'
       });
 
       const data = await response.json();
      
       if (data.needs_auth) {
-        // ✅ REMOVED credentials: 'include'
-        const authResponse = await fetch(`${API_URL}/auth/google`);
+        const authResponse = await fetch(`${API_URL}/auth/google`, {
+          credentials: 'include',
+          headers: token ? {
+            'Authorization': `Bearer ${token}`
+          } : {}
+        });
         const authData = await authResponse.json();
         window.location.href = authData.auth_url;
         return;
@@ -249,6 +274,7 @@ const Record = () => {
         window.open(data.doc_url, '_blank');
       }
     } catch (error) {
+      console.error('Push to docs error:', error);
       toast({
         title: "Error",
         description: "Failed to push to Google Docs",
