@@ -36,19 +36,19 @@ load_dotenv()
 
 
 # ===========================
-# 1ï¸âƒ£ SINGLE APP INITIALIZATION
+# 1️⃣ SINGLE APP INITIALIZATION
 # ===========================
 app = Flask(__name__)
 
 
 # ===========================
-# 2ï¸âƒ£ SINGLE SECRET KEY CONFIG
+# 2️⃣ SINGLE SECRET KEY CONFIG
 # ===========================
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'super_secret_dev_key_123')
 
 
 # ===========================
-# 2ï¸âƒ£.5 JWT CONFIGURATION
+# 2️⃣.5 JWT CONFIGURATION
 # ===========================
 JWT_SECRET = os.getenv('JWT_SECRET_KEY', app.config['SECRET_KEY'])
 JWT_ALGORITHM = 'HS256'
@@ -56,7 +56,7 @@ JWT_EXPIRATION_HOURS = 168  # 7 days
 
 
 # ===========================
-# 3ï¸âƒ£ SINGLE SESSION CONFIG
+# 3️⃣ SINGLE SESSION CONFIG
 # ===========================
 app.config.update(
     SESSION_COOKIE_SECURE=True,
@@ -68,30 +68,47 @@ app.config.update(
 
 
 # ===========================
-# 4ï¸âƒ£ SINGLE CORS CONFIG
+# 4️⃣ SINGLE CORS CONFIG - UPDATED FOR MOBILE
 # ===========================
 frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+
+# ✅ EXPANDED: Include all possible origins for mobile compatibility
+allowed_origins = [
+    'https://google-lecture-transcriber.vercel.app',
+    frontend_url,
+    'http://localhost:5173',
+    'http://localhost:5000',
+    'http://localhost:3000',
+    # Mobile app origins
+    'capacitor://localhost',
+    'ionic://localhost',
+    'http://localhost',
+    'https://localhost',
+]
+
+# Remove empty strings from origins
+allowed_origins = [origin for origin in allowed_origins if origin]
+
+print(f"✅ CORS enabled for origins: {allowed_origins}")
+
 CORS(app, 
-     origins=[
-         'https://google-lecture-transcriber.vercel.app',
-         frontend_url,
-         'http://localhost:5173'
-     ],
+     origins=allowed_origins,
      supports_credentials=True,
-     allow_headers=['Content-Type', 'Authorization'],
-     expose_headers=['Set-Cookie'],
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
+     expose_headers=['Set-Cookie', 'Authorization'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     max_age=3600  # Cache preflight requests for 1 hour
 )
 
 
 # ===========================
-# 5ï¸âƒ£ SINGLE BCRYPT INIT
+# 5️⃣ SINGLE BCRYPT INIT
 # ===========================
 bcrypt = Bcrypt(app)
 
 
 # ===========================
-# 6ï¸âƒ£ ENVIRONMENT SETUP
+# 6️⃣ ENVIRONMENT SETUP
 # ===========================
 DEVICE = "cpu"
 COMPUTE_TYPE = "int8"
@@ -101,26 +118,26 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 
 # ===========================
-# 7ï¸âƒ£ GEMINI SETUP
+# 7️⃣ GEMINI SETUP
 # ===========================
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-print(f"ðŸ”‘ Using Gemini API Key: {os.getenv('GEMINI_API_KEY')[:20] if os.getenv('GEMINI_API_KEY') else 'NOT SET'}...")
+print(f"🔑 Using Gemini API Key: {os.getenv('GEMINI_API_KEY')[:20] if os.getenv('GEMINI_API_KEY') else 'NOT SET'}...")
 
 
 # ===========================
-# 8ï¸âƒ£ GOOGLE SPEECH-TO-TEXT SETUP
+# 8️⃣ GOOGLE SPEECH-TO-TEXT SETUP
 # ===========================
 speech_creds_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', 'google-speech-credentials.json')
 if os.path.exists(speech_creds_path):
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = speech_creds_path
-    print(f"âœ… Google Speech-to-Text credentials loaded from {speech_creds_path}")
+    print(f"✅ Google Speech-to-Text credentials loaded from {speech_creds_path}")
 else:
-    print(f"âš ï¸ Warning: Google Speech credentials file not found at {speech_creds_path}")
+    print(f"⚠️ Warning: Google Speech credentials file not found at {speech_creds_path}")
 
 
 # ===========================
-# 9ï¸âƒ£ MONGODB SETUP
+# 9️⃣ MONGODB SETUP
 # ===========================
 username = quote_plus(os.getenv('MONGODB_USER_ID', ''))
 password = quote_plus(os.getenv('MONGODB_PASSWORD', ''))
@@ -148,16 +165,16 @@ try:
     users_collection = db.users
     notes_collection = db.notes
     mongo_client.server_info()
-    print("âœ… Connected to MongoDB!")
+    print("✅ Connected to MongoDB!")
 except Exception as e:
-    print(f"âŒ Error connecting to MongoDB: {e}")
+    print(f"❌ Error connecting to MongoDB: {e}")
     db = None
     users_collection = None
     notes_collection = None
 
 
 # ===========================
-# ðŸ”Ÿ GOOGLE OAUTH SETUP
+# 🔟 GOOGLE OAUTH SETUP
 # ===========================
 SCOPES = ['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file']
 LOGIN_SCOPES = [
@@ -171,13 +188,13 @@ LOGIN_SCOPES = [
 
 CLIENT_SECRET_FILE = 'credentials_oauth.json'
 if not os.path.exists(CLIENT_SECRET_FILE):
-    print(f"âš ï¸ WARNING: OAuth credentials not found at {CLIENT_SECRET_FILE}")
-    print(f"âš ï¸ Google OAuth routes will be disabled")
+    print(f"⚠️ WARNING: OAuth credentials not found at {CLIENT_SECRET_FILE}")
+    print(f"⚠️ Google OAuth routes will be disabled")
     CLIENT_SECRET_FILE = None
 
 
 # ===========================
-# 1ï¸âƒ£1ï¸âƒ£ WHISPER MODEL SETUP
+# 1️⃣1️⃣ WHISPER MODEL SETUP
 # ===========================
 DEBUG_DIR = os.path.join(os.path.dirname(__file__), 'debug_audio')
 os.makedirs(DEBUG_DIR, exist_ok=True)
@@ -195,37 +212,49 @@ try:
         download_root="./whisper_models",
         num_workers=4
     )
-    print(f"âœ… Whisper model loaded successfully on {DEVICE}!")
+    print(f"✅ Whisper model loaded successfully on {DEVICE}!")
 except Exception as e:
-    print(f"âŒ Error loading Whisper model: {e}")
+    print(f"❌ Error loading Whisper model: {e}")
     model = None
 
 
 # Check for ffmpeg
 ffmpeg_path = shutil.which('ffmpeg')
 if not ffmpeg_path:
-    print("âš ï¸ WARNING: 'ffmpeg' not found in PATH.")
+    print("⚠️ WARNING: 'ffmpeg' not found in PATH.")
 else:
-    print(f"âœ… ffmpeg found at: {ffmpeg_path}")
+    print(f"✅ ffmpeg found at: {ffmpeg_path}")
 
 
 # ===========================
-# ðŸ”§ MOBILE COOKIE FIX
+# 🔧 MOBILE COOKIE FIX - UPDATED
 # ===========================
 @app.after_request
 def after_request(response):
     """Add headers for mobile cookie compatibility"""
     origin = request.headers.get('Origin')
 
-    # Allow credentials from allowed origins
+    # ✅ EXPANDED: Allow credentials from allowed origins INCLUDING mobile
     allowed_origins = [
         'https://google-lecture-transcriber.vercel.app',
         'http://localhost:5173',
-        os.getenv('FRONTEND_URL', '')
+        'http://localhost:5000',
+        os.getenv('FRONTEND_URL', ''),
+        # ✅ ADD MOBILE APP ORIGINS
+        'capacitor://localhost',
+        'ionic://localhost',
+        'http://localhost',
+        'https://localhost'
     ]
 
-    if origin in allowed_origins:
-        response.headers['Access-Control-Allow-Origin'] = origin
+    # ✅ Allow requests with no origin (mobile apps sometimes send null)
+    if origin in allowed_origins or origin is None:
+        if origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        else:
+            # For mobile apps with no origin
+            response.headers['Access-Control-Allow-Origin'] = '*'
+        
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
@@ -245,7 +274,7 @@ def after_request(response):
 
 
 # ===========================
-# ðŸ› ï¸ HELPER FUNCTIONS
+# 🛠️ HELPER FUNCTIONS - UPDATED
 # ===========================
 
 def create_access_token(user_id: str) -> str:
@@ -262,35 +291,48 @@ def verify_token(token: str) -> dict:
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     except jwt.ExpiredSignatureError:
-        print("Token expired")
+        print("❌ Token expired")
         return None
-    except jwt.InvalidTokenError:
-        print("Invalid token")
+    except jwt.InvalidTokenError as e:
+        print(f"❌ Invalid token: {e}")
         return None
 
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # ✅ CHECK TOKEN FIRST (for mobile - more reliable)
+        user_id = None
+        auth_method = None
+        
+        # ✅ PRIORITY 1: CHECK TOKEN FIRST (for mobile - more reliable)
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
             token = auth_header.split(' ')[1]
             payload = verify_token(token)
             if payload:
-                request.user_id = payload['user_id']
-                print(f"✅ Token auth successful for user: {payload['user_id']}")
-                return f(*args, **kwargs)
-            else:
-                print("❌ Invalid token")
+                user_id = payload['user_id']
+                auth_method = 'token'
+                print(f"✅ Token auth successful for user: {user_id}")
         
-        # Then check session (for desktop browsers)
-        if 'user_id' in session:
-            request.user_id = session['user_id']
-            print(f"✅ Session auth successful for user: {session['user_id']}")
-            return f(*args, **kwargs)
-
-        print("❌ No authentication found")
-        return jsonify({'error': 'Authentication required', 'needs_login': True}), 401
+        # ✅ PRIORITY 2: CHECK SESSION (for desktop browsers)
+        if not user_id and 'user_id' in session:
+            user_id = session['user_id']
+            auth_method = 'session'
+            print(f"✅ Session auth successful for user: {user_id}")
+        
+        # ✅ If no auth found, return 401
+        if not user_id:
+            print("❌ No authentication found - returning 401")
+            return jsonify({
+                'error': 'Authentication required', 
+                'needs_login': True,
+                'message': 'Please log in to access this resource'
+            }), 401
+        
+        # ✅ Store user_id in request context for use in route handlers
+        request.user_id = user_id
+        request.auth_method = auth_method
+        
+        return f(*args, **kwargs)
     return decorated_function
 
 def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
@@ -335,7 +377,7 @@ def transcribe_with_google_speech(audio_path: str):
             use_enhanced=True,
         )
 
-        print(f"ðŸŽ¤ Transcribing with Google Speech-to-Text...")
+        print(f"🎤 Transcribing with Google Speech-to-Text...")
         response = client.recognize(config=config, audio=audio)
 
         transcript = ' '.join([
@@ -345,12 +387,12 @@ def transcribe_with_google_speech(audio_path: str):
 
         if response.results and response.results[0].alternatives:
             confidence = response.results[0].alternatives[0].confidence
-            print(f"âœ… Google Speech confidence: {confidence:.2%}")
+            print(f"✅ Google Speech confidence: {confidence:.2%}")
 
         return transcript, 'en-US'
 
     except Exception as e:
-        print(f"âŒ Google Speech error: {e}")
+        print(f"❌ Google Speech error: {e}")
         return None, None
 
 
@@ -385,7 +427,7 @@ def decode_audio_to_np(path: str, target_sr: int = 16000) -> Tuple[Optional[np.n
 
 
 # ===========================
-# ðŸ” AUTHENTICATION ROUTES
+# 🔐 AUTHENTICATION ROUTES - UPDATED
 # ===========================
 
 
@@ -414,7 +456,8 @@ def google_login_callback():
 
     try:
         if 'state' not in session:
-            return jsonify({'error': 'State missing from session'}), 400
+            print("❌ State missing from session")
+            return redirect(f"{FRONTEND_REDIRECT}/login?error=state_missing")
 
         state = session['state']
 
@@ -444,7 +487,7 @@ def google_login_callback():
         last_name = user_info.get('family_name', '')
 
         if not email:
-            return jsonify({'error': 'Could not retrieve email'}), 400
+            return redirect(f"{FRONTEND_REDIRECT}/login?error=no_email")
 
         user = users_collection.find_one({'email': email})
 
@@ -464,18 +507,23 @@ def google_login_callback():
                 'google_credentials': creds_data
             }).inserted_id
 
+        # ✅ Set session for desktop browsers
         session['user_id'] = str(user_id)
+        session.permanent = True
 
-        # Create JWT token for mobile
+        # ✅ Create JWT token for mobile/all platforms
         token = create_access_token(str(user_id))
 
-        print(f"âœ… User {email} logged in successfully!")
+        print(f"✅ User {email} logged in successfully via Google OAuth!")
+        print(f"✅ Generated token for user: {str(user_id)}")
 
-        # Redirect with token in URL for mobile
+        # ✅ Redirect with token in URL for mobile compatibility
         return redirect(f"{FRONTEND_REDIRECT}/dashboard?token={token}")
 
     except Exception as e:
-        print(f"âŒ OAuth callback error: {str(e)}")
+        print(f"❌ OAuth callback error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return redirect(f"{FRONTEND_REDIRECT}/login?error=auth_failed")
 
 
@@ -487,14 +535,11 @@ def register():
     first_name = data.get('firstName')
     last_name = data.get('lastName')
 
-
     if not email or not password:
         return jsonify({'error': 'Email and password required'}), 400
 
-
     if users_collection.find_one({'email': email}):
         return jsonify({'error': 'User already exists'}), 400
-
 
     hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
     user_id = users_collection.insert_one({
@@ -506,16 +551,21 @@ def register():
         'auth_provider': 'local'
     }).inserted_id
 
-
+    # ✅ Set session
     session['user_id'] = str(user_id)
+    session.permanent = True
 
-    # Create JWT token for mobile
+    # ✅ Create JWT token for mobile
     token = create_access_token(str(user_id))
+
+    print(f"✅ New user registered: {email}")
+    print(f"✅ Generated token for user: {str(user_id)}")
 
     return jsonify({
         'success': True,
-        'token': token,  # âœ… Return token for mobile
+        'token': token,
         'user': {
+            'id': str(user_id),
             'email': email,
             'name': f"{first_name} {last_name}"
         }
@@ -528,6 +578,8 @@ def login():
     email = data.get('email')
     password = data.get('password')
 
+    if not email or not password:
+        return jsonify({'error': 'Email and password required'}), 400
 
     user = users_collection.find_one({'email': email})
 
@@ -539,15 +591,22 @@ def login():
 
     if 'password' in user and bcrypt.check_password_hash(user['password'], password):
         user_id = str(user['_id'])
+        
+        # ✅ Set session
         session['user_id'] = user_id
+        session.permanent = True
 
-        # Create JWT token for mobile
+        # ✅ Create JWT token for mobile
         token = create_access_token(user_id)
+
+        print(f"✅ User logged in: {email}")
+        print(f"✅ Generated token for user: {user_id}")
 
         return jsonify({
             'success': True,
-            'token': token,  # âœ… Return token for mobile
+            'token': token,
             'user': {
+                'id': user_id,
                 'email': email,
                 'name': f"{user.get('first_name', '')} {user.get('last_name', '')}"
             }
@@ -558,82 +617,169 @@ def login():
 
 @app.route('/auth/status')
 def auth_status():
-    # Check session first
-    if 'user_id' in session:
-        user = users_collection.find_one({'_id': ObjectId(session['user_id'])})
-        if user:
-            return jsonify({
-                'authenticated': True,
-                'user': {
-                    'email': user.get('email'),
-                    'first_name': user.get('first_name'),
-                    'last_name': user.get('last_name'),
-                    'auth_provider': user.get('auth_provider', 'local')
-                }
-            })
-
-    # Check JWT token
+    """Check authentication status - supports both session and token"""
+    user_id = None
+    auth_method = None
+    
+    # ✅ Check JWT token first
     auth_header = request.headers.get('Authorization')
     if auth_header and auth_header.startswith('Bearer '):
         token = auth_header.split(' ')[1]
         payload = verify_token(token)
         if payload:
-            user = users_collection.find_one({'_id': ObjectId(payload['user_id'])})
+            user_id = payload['user_id']
+            auth_method = 'token'
+            print(f"✅ Auth status check via token for user: {user_id}")
+    
+    # ✅ Check session if no token
+    if not user_id and 'user_id' in session:
+        user_id = session['user_id']
+        auth_method = 'session'
+        print(f"✅ Auth status check via session for user: {user_id}")
+    
+    if user_id:
+        try:
+            user = users_collection.find_one({'_id': ObjectId(user_id)})
             if user:
                 return jsonify({
                     'authenticated': True,
+                    'auth_method': auth_method,
                     'user': {
+                        'id': str(user['_id']),
                         'email': user.get('email'),
                         'first_name': user.get('first_name'),
                         'last_name': user.get('last_name'),
                         'auth_provider': user.get('auth_provider', 'local')
                     }
                 })
-
+        except Exception as e:
+            print(f"❌ Error fetching user: {e}")
+    
+    print("❌ Auth status check failed - not authenticated")
     return jsonify({'authenticated': False}), 200
 
 
-@app.route('/auth/logout')
+@app.route('/auth/logout', methods=['GET', 'POST'])
 def logout():
+    """Logout - clear session (token is cleared client-side)"""
     session.clear()
-    return jsonify({'success': True})
+    print("✅ User logged out")
+    return jsonify({'success': True, 'message': 'Logged out successfully'})
 
 
 @app.route('/me', methods=['GET'])
 def get_current_user():
+    """Get current user info - supports both session and token"""
     user_id = None
+    auth_method = None
 
-    # Check session
-    if 'user_id' in session:
+    # ✅ Check JWT token first
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ')[1]
+        payload = verify_token(token)
+        if payload:
+            user_id = payload['user_id']
+            auth_method = 'token'
+    
+    # ✅ Check session if no token
+    if not user_id and 'user_id' in session:
         user_id = session['user_id']
-    else:
-        # Check JWT
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            payload = verify_token(token)
-            if payload:
-                user_id = payload['user_id']
+        auth_method = 'session'
 
     if not user_id:
-        return jsonify({'authenticated': False}), 401
+        return jsonify({
+            'authenticated': False,
+            'error': 'Not authenticated'
+        }), 401
 
-    user = users_collection.find_one({'_id': ObjectId(user_id)})
-    if not user:
-        return jsonify({'authenticated': False}), 401
+    try:
+        user = users_collection.find_one({'_id': ObjectId(user_id)})
+        if not user:
+            return jsonify({
+                'authenticated': False,
+                'error': 'User not found'
+            }), 401
 
-    return jsonify({
-        'authenticated': True,
-        'user': {
-            'email': user['email'],
-            'name': f"{user.get('first_name', '')} {user.get('last_name', '')}",
-            'has_google_auth': 'google_credentials' in user
+        return jsonify({
+            'authenticated': True,
+            'auth_method': auth_method,
+            'user': {
+                'id': str(user['_id']),
+                'email': user['email'],
+                'name': f"{user.get('first_name', '')} {user.get('last_name', '')}",
+                'first_name': user.get('first_name'),
+                'last_name': user.get('last_name'),
+                'has_google_auth': 'google_credentials' in user,
+                'auth_provider': user.get('auth_provider', 'local')
+            }
+        })
+    except Exception as e:
+        print(f"❌ Error in /me endpoint: {e}")
+        return jsonify({
+            'authenticated': False,
+            'error': str(e)
+        }), 500
+
+
+# ===========================
+# 🐛 DEBUG ENDPOINTS - Remove in production!
+# ===========================
+
+@app.route('/debug/auth', methods=['GET'])
+def debug_auth():
+    """Debug authentication - shows what auth methods are detected"""
+    debug_info = {
+        'timestamp': datetime.utcnow().isoformat(),
+        'request_info': {
+            'origin': request.headers.get('Origin'),
+            'user_agent': request.headers.get('User-Agent'),
+            'referer': request.headers.get('Referer'),
+        },
+        'session_info': {
+            'has_session': 'user_id' in session,
+            'session_user_id': session.get('user_id'),
+            'session_keys': list(session.keys()) if session else []
+        },
+        'token_info': {
+            'has_auth_header': 'Authorization' in request.headers,
+            'auth_header': request.headers.get('Authorization', '')[:50] if 'Authorization' in request.headers else None,
+        },
+        'cookies': {
+            'cookie_header': request.headers.get('Cookie', '')[:100] if request.headers.get('Cookie') else None,
         }
+    }
+    
+    # Try to verify token if present
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ')[1]
+        payload = verify_token(token)
+        debug_info['token_info']['token_valid'] = payload is not None
+        if payload:
+            debug_info['token_info']['token_user_id'] = payload.get('user_id')
+            debug_info['token_info']['token_expires'] = datetime.fromtimestamp(payload.get('exp')).isoformat() if payload.get('exp') else None
+    
+    return jsonify(debug_info)
+
+
+@app.route('/debug/test-auth', methods=['GET'])
+@login_required
+def debug_test_auth():
+    """Test if authentication is working"""
+    user_id = request.user_id
+    auth_method = request.auth_method
+    
+    return jsonify({
+        'success': True,
+        'message': 'Authentication successful!',
+        'user_id': user_id,
+        'auth_method': auth_method
     })
 
 
 # ===========================
-# ðŸ“ TRANSCRIPTION ROUTES
+# 🎙️ TRANSCRIPTION ROUTES
 # ===========================
 
 
@@ -675,18 +821,18 @@ def transcribe_audio():
         language = 'en'
 
         if method == 'google':
-            print(f"ðŸŽ¤ Using Google Speech-to-Text...")
+            print(f"🎤 Using Google Speech-to-Text...")
             transcript, language = transcribe_with_google_speech(temp_path)
 
             if not transcript:
-                print("âš ï¸ Google Speech failed, falling back to Whisper...")
+                print("⚠️ Google Speech failed, falling back to Whisper...")
                 method = 'whisper'
 
         if method == 'whisper' or not transcript:
             if model is None:
                 return jsonify({'error': 'Whisper model not loaded'}), 500
 
-            print(f"ðŸŽ¤ Using Whisper (local)...")
+            print(f"🎤 Using Whisper (local)...")
             segments, info = model.transcribe(
                 temp_path,
                 language=None,
@@ -703,8 +849,7 @@ def transcribe_audio():
             method = 'whisper'
 
         elapsed_time = time.time() - start_time
-        print(f"âœ… Transcription completed in {elapsed_time:.2f}s using {method}")
-
+        print(f"✅ Transcription completed in {elapsed_time:.2f}s using {method}")
 
         try:
             os.unlink(temp_path)
@@ -797,7 +942,7 @@ OUTPUT FORMAT:
 
 
 # ===========================
-# ðŸ“„ NOTES MANAGEMENT ROUTES
+# 📄 NOTES MANAGEMENT ROUTES
 # ===========================
 
 
@@ -1014,7 +1159,7 @@ def export_pdf(note_id):
                     spaceAfter=4,
                     leading=14
                 )
-                elements.append(Paragraph('â€¢ ' + line[2:], bullet_style))
+                elements.append(Paragraph('• ' + line[2:], bullet_style))
             else:
                 elements.append(Paragraph(line, body_style))
 
@@ -1046,7 +1191,7 @@ def export_pdf(note_id):
 
 
 # ===========================
-# ðŸ“ FOLDERS ROUTES
+# 📁 FOLDERS ROUTES
 # ===========================
 
 
@@ -1171,7 +1316,7 @@ def add_notes_to_folder(folder_id):
 
 
 # ===========================
-# ðŸ“¤ GOOGLE DOCS INTEGRATION
+# 📤 GOOGLE DOCS INTEGRATION
 # ===========================
 
 
@@ -1305,7 +1450,7 @@ def push_to_docs():
 
 
 # ===========================
-# â¤ï¸ HEALTH CHECK
+# ❤️ HEALTH CHECK
 # ===========================
 
 
@@ -1315,7 +1460,7 @@ def health():
 
 
 # ===========================
-# ðŸš€ RUN SERVER
+# 🚀 RUN SERVER
 # ===========================
 
 if __name__ == '__main__':

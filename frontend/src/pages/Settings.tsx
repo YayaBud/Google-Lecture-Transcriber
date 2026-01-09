@@ -1,69 +1,74 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import DashboardSidebar from "../components/dashboard/DashboardSidebar";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "../hooks/use-toast";
-import { User, Mail, Lock, LogOut } from "lucide-react";
-import { api } from '../lib/api';
-
-interface UserProfile {
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  name?: string;
-}
+import { api, tokenManager } from '../lib/api';
+import { useState, useEffect } from "react";
+import { LogOut, Moon, Sun, User } from "lucide-react";
 
 const Settings = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
 
-  const fetchProfile = async () => {
+  useEffect(() => {
+    // Get current theme
+    const isDark = document.documentElement.classList.contains('dark');
+    setTheme(isDark ? 'dark' : 'light');
+    
+    // Get user info
+    fetchUserInfo();
+  }, []);
+
+  const fetchUserInfo = async () => {
     try {
       const data = await api.getAuthStatus();
-      if (data.authenticated && data.user) {
-        setProfile(data.user);
-      } else {
-        navigate('/login');
+      if (data.authenticated) {
+        setUser(data.user);
       }
     } catch (error) {
-      console.error("Failed to fetch profile", error);
-      navigate('/login');
+      console.error('Failed to fetch user info', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchProfile();
-  }, [navigate]);
-
   const handleLogout = async () => {
     try {
-      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/auth/logout`;
-    } catch (error) {
+      await api.logout();
+      tokenManager.remove(); // ✅ Clear token
+      
       toast({
-        title: "Error",
-        description: "Failed to logout",
-        variant: "destructive"
+        title: "Logged out",
+        description: "You have been logged out successfully.",
       });
+      
+      // Small delay to show toast
+      setTimeout(() => {
+        navigate('/login');
+      }, 500);
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if API fails, clear local auth and redirect
+      tokenManager.remove();
+      navigate('/login');
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex">
-        <DashboardSidebar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-      </div>
-    );
-  }
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', newTheme);
+    
+    toast({
+      title: "Theme updated",
+      description: `Switched to ${newTheme} mode.`,
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -72,141 +77,118 @@ const Settings = () => {
       <div className="flex-1 flex flex-col">
         <DashboardHeader 
           title="Settings" 
-          subtitle="Manage your account preferences"
+          subtitle="Manage your account and preferences"
           showSearch={false}
         />
-
+        
         <main className="flex-1 p-8 overflow-y-auto">
           <div className="max-w-2xl mx-auto space-y-8">
-            {/* Profile Section */}
-            <div className="bg-card border border-border rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            
+            {/* Account Information */}
+            <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
                   <User className="w-5 h-5 text-primary" />
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold">Profile Information</h2>
-                  <p className="text-sm text-muted-foreground">Update your personal details</p>
-                </div>
+                <h2 className="text-xl font-semibold text-foreground">Account Information</h2>
               </div>
-
-              <div className="space-y-4">
-                {profile?.firstName !== undefined && profile?.lastName !== undefined ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label htmlFor="firstName" className="text-sm font-medium">First Name</label>
-                        <Input
-                          id="firstName"
-                          value={profile?.firstName || ''}
-                          onChange={(e) => setProfile(prev => prev ? {...prev, firstName: e.target.value} : null)}
-                          placeholder="John"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label htmlFor="firstName" className="text-sm font-medium">Last Name</label>
-                        <Input
-                          id="lastName"
-                          value={profile?.lastName || ''}
-                          onChange={(e) => setProfile(prev => prev ? {...prev, lastName: e.target.value} : null)}
-                          placeholder="Doe"
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-2">
-                    <label htmlFor="firstName" className="text-sm font-medium">Name</label>
-                    <Input
-                      id="name"
-                      value={profile?.name || ''}
-                      onChange={(e) => setProfile(prev => prev ? {...prev, name: e.target.value} : null)}
-                      placeholder="John Doe"
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <label htmlFor="firstName" className="text-sm font-medium">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      value={profile?.email || ''}
-                      disabled
-                      className="pl-10 bg-muted"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+              
+              {isLoading ? (
+                <div className="animate-pulse space-y-3">
+                  <div className="h-4 bg-muted rounded w-3/4"></div>
+                  <div className="h-4 bg-muted rounded w-1/2"></div>
                 </div>
-
-                <Button 
-                  onClick={() => {
-                    toast({
-                      title: "Coming soon",
-                      description: "Profile update feature will be available soon."
-                    });
-                  }}
-                  disabled={isSaving}
-                  className="w-full"
-                >
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
+              ) : user ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm text-muted-foreground">Name</label>
+                    <p className="text-foreground font-medium">
+                      {user.first_name} {user.last_name}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-muted-foreground">Email</label>
+                    <p className="text-foreground font-medium">{user.email}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-muted-foreground">Auth Provider</label>
+                    <p className="text-foreground font-medium capitalize">{user.auth_provider || 'Local'}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">Failed to load user information</p>
+              )}
             </div>
 
-            {/* Security Section */}
-            <div className="bg-card border border-border rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Lock className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold">Security</h2>
-                  <p className="text-sm text-muted-foreground">Manage your password and security settings</p>
-                </div>
+            {/* Appearance */}
+            <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-3 mb-4">
+                {theme === 'dark' ? (
+                  <Moon className="w-5 h-5 text-primary" />
+                ) : (
+                  <Sun className="w-5 h-5 text-primary" />
+                )}
+                <h2 className="text-xl font-semibold text-foreground">Appearance</h2>
               </div>
-
-              <div className="space-y-4">
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={() => {
-                    toast({
-                      title: "Coming soon",
-                      description: "Password change feature will be available soon."
-                    });
-                  }}
-                >
-                  Change Password
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-foreground">Theme</p>
+                  <p className="text-sm text-muted-foreground">
+                    Currently using {theme} mode
+                  </p>
+                </div>
+                <Button onClick={toggleTheme} variant="outline" className="gap-2">
+                  {theme === 'dark' ? (
+                    <>
+                      <Sun className="w-4 h-4" />
+                      Light Mode
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="w-4 h-4" />
+                      Dark Mode
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
 
             {/* Danger Zone */}
-            <div className="bg-card border border-destructive/20 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                  <LogOut className="w-5 h-5 text-destructive" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-destructive">Danger Zone</h2>
-                  <p className="text-sm text-muted-foreground">Irreversible actions</p>
-                </div>
+            <div className="bg-card border border-destructive/50 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-3 mb-4">
+                <LogOut className="w-5 h-5 text-destructive" />
+                <h2 className="text-xl font-semibold text-foreground">Danger Zone</h2>
               </div>
-
-              <div className="space-y-4">
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-foreground">Log Out</p>
+                  <p className="text-sm text-muted-foreground">
+                    Sign out of your account
+                  </p>
+                </div>
                 <Button 
-                  variant="destructive" 
-                  className="w-full"
                   onClick={handleLogout}
+                  variant="destructive"
+                  className="gap-2"
                 >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
+                  <LogOut className="w-4 h-4" />
+                  Log Out
                 </Button>
               </div>
             </div>
+
+            {/* Debug Info (Remove in production) */}
+            <div className="bg-muted/50 border border-border rounded-2xl p-6 space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">Debug Info</h3>
+              <div className="text-xs font-mono text-muted-foreground space-y-1">
+                <p>Token stored: {tokenManager.get() ? '✅ Yes' : '❌ No'}</p>
+                <p>User ID: {user?.id || 'N/A'}</p>
+                <p>Auth Provider: {user?.auth_provider || 'N/A'}</p>
+              </div>
+            </div>
+
           </div>
         </main>
       </div>
