@@ -13,9 +13,41 @@ interface SignupData {
   password: string;
 }
 
+// ✅ STORAGE HELPERS (handles private/incognito mode)
+const storeToken = (token: string) => {
+  try {
+    localStorage.setItem('authToken', token);
+    console.log('✅ Token stored in localStorage');
+  } catch (e) {
+    console.warn('⚠️ localStorage blocked, using sessionStorage');
+    sessionStorage.setItem('authToken', token);
+  }
+};
+
+const getToken = (): string | null => {
+  try {
+    return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+  } catch (e) {
+    return sessionStorage.getItem('authToken');
+  }
+};
+
+const removeToken = () => {
+  try {
+    localStorage.removeItem('authToken');
+  } catch (e) {
+    // localStorage blocked
+  }
+  try {
+    sessionStorage.removeItem('authToken');
+  } catch (e) {
+    // sessionStorage blocked too
+  }
+};
+
 // Helper to get auth headers
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('authToken');
+  const token = getToken();
   const headers: HeadersInit = {
     'Content-Type': 'application/json'
   };
@@ -41,9 +73,8 @@ export const api = {
     console.log('🔑 Token received:', data.token ? `${data.token.substring(0, 20)}...` : 'NONE');
     
     if (data.token) {
-      localStorage.setItem('authToken', data.token);
-      console.log('💾 Token stored in localStorage');
-      console.log('✅ Verification - Token exists:', !!localStorage.getItem('authToken'));
+      storeToken(data.token);
+      console.log('✅ Verification - Token exists:', !!getToken());
     } else {
       console.error('❌ No token in response!');
     }
@@ -60,9 +91,8 @@ export const api = {
     });
     const data = await response.json();
     
-    // Store token for mobile
     if (data.token) {
-      localStorage.setItem('authToken', data.token);
+      storeToken(data.token);
     }
     
     return { response, data };
@@ -73,7 +103,7 @@ export const api = {
   },
 
   getAuthStatus: async () => {
-    const token = localStorage.getItem('authToken');
+    const token = getToken();
     console.log('🔍 Checking auth with token:', token ? 'EXISTS' : 'MISSING');
     
     const headers: HeadersInit = {};
@@ -89,7 +119,7 @@ export const api = {
   },
 
   logout: async () => {
-    localStorage.removeItem('authToken');
+    removeToken();
     const response = await fetch(`${API_URL}/auth/logout`, {
       credentials: 'include'
     });
@@ -98,7 +128,7 @@ export const api = {
 
   // Notes endpoints
   getNotes: async () => {
-    const token = localStorage.getItem('authToken');
+    const token = getToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -112,7 +142,7 @@ export const api = {
   },
 
   toggleFavorite: async (noteId: string) => {
-    const token = localStorage.getItem('authToken');
+    const token = getToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -137,7 +167,7 @@ export const api = {
   },
 
   deleteNote: async (noteId: string) => {
-    const token = localStorage.getItem('authToken');
+    const token = getToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -152,7 +182,7 @@ export const api = {
   },
 
   exportPdf: async (noteId: string) => {
-    const token = localStorage.getItem('authToken');
+    const token = getToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -168,7 +198,7 @@ export const api = {
 
   // Folders endpoints
   getFolders: async () => {
-    const token = localStorage.getItem('authToken');
+    const token = getToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -202,7 +232,7 @@ export const api = {
   },
 
   deleteFolder: async (folderId: string) => {
-    const token = localStorage.getItem('authToken');
+    const token = getToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -228,7 +258,7 @@ export const api = {
 
   // Transcription & Notes Generation
   transcribeAudio: async (audioBlob: Blob, method: 'whisper' | 'google' = 'whisper') => {
-    const token = localStorage.getItem('authToken');
+    const token = getToken();
     const formData = new FormData();
     formData.append('audio', audioBlob);
     formData.append('method', method);
