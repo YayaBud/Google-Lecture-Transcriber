@@ -20,15 +20,15 @@ const Record = () => {
   const [isPushing, setIsPushing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [volume, setVolume] = useState(0); // ✅ NEW: Track volume level
+  const [volume, setVolume] = useState(0);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null); // ✅ NEW: Audio context
-  const analyserRef = useRef<AnalyserNode | null>(null); // ✅ NEW: Analyser node
-  const animationFrameRef = useRef<number | null>(null); // ✅ NEW: Animation frame
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
@@ -44,19 +44,26 @@ const Record = () => {
     };
   }, []);
 
-  // ✅ NEW: Analyze audio volume in real-time
+  // ✅ FIXED: Better volume analysis using time domain data
   const analyzeVolume = () => {
     if (!analyserRef.current || !isRecording) return;
 
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-    analyserRef.current.getByteFrequencyData(dataArray);
+    const bufferLength = analyserRef.current.fftSize;
+    const dataArray = new Uint8Array(bufferLength);
+    analyserRef.current.getByteTimeDomainData(dataArray);
 
-    // Calculate average volume
-    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-    const normalizedVolume = Math.min(100, (average / 255) * 100 * 2); // Scale to 0-100
+    // Calculate RMS (Root Mean Square) volume
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const normalized = (dataArray[i] - 128) / 128;
+      sum += normalized * normalized;
+    }
+    const rms = Math.sqrt(sum / bufferLength);
+    
+    // Scale and clamp volume to 0-100
+    const normalizedVolume = Math.min(100, Math.max(0, rms * 300));
     
     setVolume(normalizedVolume);
-
     animationFrameRef.current = requestAnimationFrame(analyzeVolume);
   };
 
@@ -65,17 +72,21 @@ const Record = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           channelCount: 1,
-          sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true,
+          sampleRate: 48000, // Higher sample rate for better analysis
+          echoCancellation: false, // Disable for better volume detection
+          noiseSuppression: false, // Disable for better volume detection
+          autoGainControl: false, // Disable AGC
         } 
       });
       
-      // ✅ NEW: Set up audio analysis
+      // ✅ FIXED: Set up audio analysis with better settings
       audioContextRef.current = new AudioContext();
       const source = audioContextRef.current.createMediaStreamSource(stream);
       analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 256;
+      analyserRef.current.fftSize = 2048; // Increased for better resolution
+      analyserRef.current.smoothingTimeConstant = 0.3;
+      analyserRef.current.minDecibels = -90;
+      analyserRef.current.maxDecibels = -10;
       source.connect(analyserRef.current);
       
       const mediaRecorder = new MediaRecorder(stream, {
@@ -96,7 +107,7 @@ const Record = () => {
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
         
-        // ✅ NEW: Clean up audio analysis
+        // Clean up audio analysis
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
         }
@@ -110,7 +121,7 @@ const Record = () => {
       setIsRecording(true);
       setRecordingTime(0);
       
-      // ✅ NEW: Start volume analysis
+      // Start volume analysis
       analyzeVolume();
       
       timerRef.current = setInterval(() => {
@@ -122,9 +133,10 @@ const Record = () => {
         description: "Speak clearly into your microphone",
       });
     } catch (error) {
+      console.error("Microphone error:", error);
       toast({
         title: "Error",
-        description: "Could not access microphone",
+        description: "Could not access microphone. Please check permissions.",
         variant: "destructive",
       });
     }
@@ -185,10 +197,14 @@ const Record = () => {
     formData.append('audio', audioBlob, selectedFile?.name || 'recording.webm');
 
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/transcribe`, {
         method: 'POST',
         body: formData,
-        credentials: 'include'
+        credentials: 'include',
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
       });
 
       if (!response.ok) {
@@ -203,6 +219,7 @@ const Record = () => {
         description: `Transcribed ${data.length} characters in ${data.duration}`,
       });
     } catch (error) {
+      console.error("Transcription error:", error);
       toast({
         title: "Error",
         description: "Failed to transcribe audio",
@@ -225,9 +242,13 @@ const Record = () => {
 
     setIsGenerating(true);
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/generate-notes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ transcript }),
         credentials: 'include'
       });
@@ -244,6 +265,7 @@ const Record = () => {
         description: "AI has created structured notes from your transcript",
       });
     } catch (error) {
+      console.error("Generation error:", error);
       toast({
         title: "Error",
         description: "Failed to generate notes",
@@ -266,9 +288,13 @@ const Record = () => {
 
     setIsPushing(true);
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/push-to-docs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ 
           notes,
           title: `Lecture Notes ${new Date().toLocaleDateString()}`
@@ -295,6 +321,7 @@ const Record = () => {
         window.open(data.doc_url, '_blank');
       }
     } catch (error) {
+      console.error("Push to docs error:", error);
       toast({
         title: "Error",
         description: "Failed to push to Google Docs",
@@ -358,9 +385,9 @@ const Record = () => {
                     <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg border-border hover:border-primary/50 transition-colors">
                       {isRecording ? (
                         <div className="text-center space-y-4">
-                          {/* ✅ NEW: Circular volume visualizer */}
+                          {/* Circular volume visualizer */}
                           <div className="relative w-32 h-32 mx-auto">
-                            {/* Outer pulsing ring */}
+                            {/* Background circle */}
                             <svg className="absolute inset-0 w-full h-full -rotate-90">
                               <circle
                                 cx="64"
@@ -383,7 +410,7 @@ const Record = () => {
                                 className="text-red-500 transition-all duration-100"
                                 strokeDasharray={`${(volume / 100) * 377} 377`}
                                 style={{
-                                  filter: `drop-shadow(0 0 ${volume / 10}px rgb(239 68 68))`,
+                                  filter: `drop-shadow(0 0 ${Math.max(2, volume / 5)}px rgb(239 68 68))`,
                                 }}
                               />
                             </svg>
@@ -393,8 +420,8 @@ const Record = () => {
                               <div 
                                 className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center transition-all duration-100"
                                 style={{
-                                  transform: `scale(${1 + volume / 500})`,
-                                  boxShadow: `0 0 ${volume / 2}px rgba(239, 68, 68, 0.5)`,
+                                  transform: `scale(${1 + volume / 400})`,
+                                  boxShadow: `0 0 ${Math.max(4, volume / 2)}px rgba(239, 68, 68, 0.6)`,
                                 }}
                               >
                                 <Mic className="w-10 h-10 text-red-500" />
