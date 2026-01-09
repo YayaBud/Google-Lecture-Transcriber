@@ -7,7 +7,10 @@ import { useState, useRef, useEffect } from "react";
 import { useToast } from "../hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
 
+
+// ✅ ADD THIS LINE
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 
 const Record = () => {
   const { toast } = useToast();
@@ -20,11 +23,12 @@ const Record = () => {
   const [isPushing, setIsPushing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  
+ 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     return () => {
@@ -34,23 +38,25 @@ const Record = () => {
     };
   }, []);
 
+
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           sampleRate: 16000,
           echoCancellation: true,
           noiseSuppression: true,
-        } 
+        }
       });
-      
+     
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
       });
-      
+     
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
+
 
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -58,19 +64,22 @@ const Record = () => {
         }
       };
 
+
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
       };
 
+
       mediaRecorder.start(1000);
       setIsRecording(true);
       setRecordingTime(0);
-      
+     
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
+
 
       toast({
         title: "Recording started",
@@ -84,6 +93,7 @@ const Record = () => {
       });
     }
   };
+
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
@@ -99,11 +109,13 @@ const Record = () => {
     }
   };
 
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -125,6 +137,7 @@ const Record = () => {
     }
   };
 
+
   const transcribeAudio = async () => {
     if (!audioBlob) {
       toast({
@@ -135,24 +148,29 @@ const Record = () => {
       return;
     }
 
+
     setIsTranscribing(true);
     const formData = new FormData();
     formData.append('audio', audioBlob, selectedFile?.name || 'recording.webm');
 
+
     try {
+      // ✅ UPDATED
       const response = await fetch(`${API_URL}/transcribe`, {
         method: 'POST',
         body: formData,
         credentials: 'include'
       });
 
+
       if (!response.ok) {
         throw new Error('Transcription failed');
       }
 
+
       const data = await response.json();
       setTranscript(data.transcript);
-      
+     
       toast({
         title: "Transcription complete",
         description: `Transcribed ${data.length} characters in ${data.duration}`,
@@ -168,6 +186,7 @@ const Record = () => {
     }
   };
 
+
   const generateNotes = async () => {
     if (!transcript) {
       toast({
@@ -178,8 +197,10 @@ const Record = () => {
       return;
     }
 
+
     setIsGenerating(true);
     try {
+      // ✅ UPDATED
       const response = await fetch(`${API_URL}/generate-notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,13 +208,15 @@ const Record = () => {
         credentials: 'include'
       });
 
+
       if (!response.ok) {
         throw new Error('Generation failed');
       }
 
+
       const data = await response.json();
       setNotes(data.notes);
-      
+     
       toast({
         title: "Notes generated",
         description: "AI has created structured notes from your transcript",
@@ -209,6 +232,7 @@ const Record = () => {
     }
   };
 
+
   const pushToGoogleDocs = async () => {
     if (!notes) {
       toast({
@@ -219,21 +243,25 @@ const Record = () => {
       return;
     }
 
+
     setIsPushing(true);
     try {
+      // ✅ UPDATED
       const response = await fetch(`${API_URL}/push-to-docs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           notes,
           title: `Lecture Notes ${new Date().toLocaleDateString()}`
         }),
         credentials: 'include'
       });
 
+
       const data = await response.json();
-      
+     
       if (data.needs_auth) {
+        // ✅ UPDATED
         const authResponse = await fetch(`${API_URL}/auth/google`, {
           credentials: 'include'
         });
@@ -241,6 +269,7 @@ const Record = () => {
         window.location.href = authData.auth_url;
         return;
       }
+
 
       if (data.success) {
         toast({
@@ -260,9 +289,10 @@ const Record = () => {
     }
   };
 
+
   const downloadTranscript = () => {
     if (!transcript) return;
-    
+   
     const blob = new Blob([transcript], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -274,9 +304,10 @@ const Record = () => {
     URL.revokeObjectURL(url);
   };
 
+
   const downloadNotes = () => {
     if (!notes) return;
-    
+   
     const blob = new Blob([notes], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -288,19 +319,20 @@ const Record = () => {
     URL.revokeObjectURL(url);
   };
 
+
   return (
     <div className="flex h-screen bg-background">
       <DashboardSidebar />
-      
+     
       <div className="flex-1 flex flex-col overflow-hidden">
-        <DashboardHeader 
-          title="Record Lecture" 
+        <DashboardHeader
+          title="Record Lecture"
           subtitle="Record or upload audio to generate notes"
         />
-        
+       
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
-            
+           
             {/* Recording Card */}
             <Card>
               <CardHeader>
@@ -343,12 +375,14 @@ const Record = () => {
                     </div>
                   </div>
 
+
                   <div className="flex items-center justify-center">
                     <span className="text-muted-foreground font-medium">OR</span>
                   </div>
 
+
                   <div className="flex-1">
-                    <div 
+                    <div
                       onClick={() => fileInputRef.current?.click()}
                       className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg border-border hover:border-primary/50 transition-colors cursor-pointer"
                     >
@@ -376,10 +410,11 @@ const Record = () => {
                   </div>
                 </div>
 
+
                 {audioBlob && (
                   <div className="flex justify-center pt-4 border-t">
-                    <Button 
-                      onClick={transcribeAudio} 
+                    <Button
+                      onClick={transcribeAudio}
                       disabled={isTranscribing}
                       size="lg"
                       className="gap-2"
@@ -401,6 +436,7 @@ const Record = () => {
               </CardContent>
             </Card>
 
+
             {/* Transcript Card */}
             {transcript && (
               <Card>
@@ -421,8 +457,8 @@ const Record = () => {
                     <p className="whitespace-pre-wrap text-sm">{transcript}</p>
                   </div>
                   <div className="flex justify-center mt-4">
-                    <Button 
-                      onClick={generateNotes} 
+                    <Button
+                      onClick={generateNotes}
                       disabled={isGenerating}
                       size="lg"
                       className="gap-2"
@@ -444,6 +480,7 @@ const Record = () => {
               </Card>
             )}
 
+
             {/* Notes Card */}
             {notes && (
               <Card>
@@ -458,8 +495,8 @@ const Record = () => {
                         <Download className="w-4 h-4" />
                         Download
                       </Button>
-                      <Button 
-                        onClick={pushToGoogleDocs} 
+                      <Button
+                        onClick={pushToGoogleDocs}
                         disabled={isPushing}
                         size="sm"
                         className="gap-2"
@@ -492,5 +529,6 @@ const Record = () => {
     </div>
   );
 };
+
 
 export default Record;
