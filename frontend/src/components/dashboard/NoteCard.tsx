@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 
@@ -30,7 +31,6 @@ interface NoteCardProps {
   onDelete?: () => void;
 }
 
-
 const NoteCard = ({ 
   id,
   title, 
@@ -46,14 +46,13 @@ const NoteCard = ({
 }: NoteCardProps) => {
   const [isFavorite, setIsFavorite] = useState(initialFavorite);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [newTitle, setNewTitle] = useState(title);
   const [isDownloading, setIsDownloading] = useState(false);
-
 
   useEffect(() => {
     setIsFavorite(initialFavorite);
   }, [initialFavorite]);
-
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -63,7 +62,6 @@ const NoteCard = ({
     }
   };
 
-
   const handleRename = () => {
     if (onRename && newTitle.trim()) {
       onRename(newTitle.trim());
@@ -71,14 +69,12 @@ const NoteCard = ({
     }
   };
 
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onDelete && confirm('Are you sure you want to delete this note?')) {
+  const handleDelete = () => {
+    if (onDelete) {
       onDelete();
+      setIsDeleteOpen(false);
     }
   };
-
 
   const handleDownloadPDF = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -86,8 +82,13 @@ const NoteCard = ({
     
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('auth_token');
+      
       const response = await fetch(`${API_URL}/notes/${id}/export-pdf`, {
         credentials: 'include',
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
       });
       
       if (!response.ok) {
@@ -123,7 +124,6 @@ const NoteCard = ({
       setIsDownloading(false);
     }
   };
-
 
   return (
     <>
@@ -169,24 +169,34 @@ const NoteCard = ({
                 />
               </button>
               
-              {/* More options dropdown */}
+              {/* More options dropdown - FIXED VISIBILITY */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <Button variant="ghost" size="icon" className="h-8 w-8">
                     <MoreVertical className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={(e) => {
-                    e.stopPropagation();
-                    setIsRenameOpen(true);
-                  }}>
+                <DropdownMenuContent 
+                  align="end" 
+                  className="bg-card border-border shadow-xl backdrop-blur-sm"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsRenameOpen(true);
+                    }}
+                    className="cursor-pointer focus:bg-accent"
+                  >
                     <Pencil className="w-4 h-4 mr-2" />
                     Rename
                   </DropdownMenuItem>
                   <DropdownMenuItem 
-                    onClick={handleDelete}
-                    className="text-destructive focus:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDeleteOpen(true);
+                    }}
+                    className="text-red-500 focus:text-red-600 focus:bg-red-500/10 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete
@@ -220,12 +230,14 @@ const NoteCard = ({
         </div>
       </div>
 
-
       {/* Rename Dialog */}
       <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
         <DialogContent onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Rename Note</DialogTitle>
+            <DialogDescription>
+              Enter a new title for your note
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -248,9 +260,36 @@ const NoteCard = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog - FIXED WITH RED BUTTON */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Delete Note</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{title}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
-
 
 export default NoteCard;
