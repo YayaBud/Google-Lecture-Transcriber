@@ -7,7 +7,6 @@ import { useState, useRef, useEffect } from "react";
 import { useToast } from "../hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
 
-// ✅ ADD THIS LINE
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const Record = () => {
@@ -21,19 +20,45 @@ const Record = () => {
   const [isPushing, setIsPushing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [volume, setVolume] = useState(0); // ✅ NEW: Track volume level
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null); // ✅ NEW: Audio context
+  const analyserRef = useRef<AnalyserNode | null>(null); // ✅ NEW: Analyser node
+  const animationFrameRef = useRef<number | null>(null); // ✅ NEW: Animation frame
 
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
     };
   }, []);
+
+  // ✅ NEW: Analyze audio volume in real-time
+  const analyzeVolume = () => {
+    if (!analyserRef.current || !isRecording) return;
+
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    analyserRef.current.getByteFrequencyData(dataArray);
+
+    // Calculate average volume
+    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+    const normalizedVolume = Math.min(100, (average / 255) * 100 * 2); // Scale to 0-100
+    
+    setVolume(normalizedVolume);
+
+    animationFrameRef.current = requestAnimationFrame(analyzeVolume);
+  };
 
   const startRecording = async () => {
     try {
@@ -45,6 +70,13 @@ const Record = () => {
           noiseSuppression: true,
         } 
       });
+      
+      // ✅ NEW: Set up audio analysis
+      audioContextRef.current = new AudioContext();
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      source.connect(analyserRef.current);
       
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
@@ -63,11 +95,23 @@ const Record = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
+        
+        // ✅ NEW: Clean up audio analysis
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+        if (audioContextRef.current) {
+          audioContextRef.current.close();
+        }
+        setVolume(0);
       };
 
       mediaRecorder.start(1000);
       setIsRecording(true);
       setRecordingTime(0);
+      
+      // ✅ NEW: Start volume analysis
+      analyzeVolume();
       
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
@@ -141,7 +185,6 @@ const Record = () => {
     formData.append('audio', audioBlob, selectedFile?.name || 'recording.webm');
 
     try {
-      // ✅ UPDATED
       const response = await fetch(`${API_URL}/transcribe`, {
         method: 'POST',
         body: formData,
@@ -182,7 +225,6 @@ const Record = () => {
 
     setIsGenerating(true);
     try {
-      // ✅ UPDATED
       const response = await fetch(`${API_URL}/generate-notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -224,7 +266,6 @@ const Record = () => {
 
     setIsPushing(true);
     try {
-      // ✅ UPDATED
       const response = await fetch(`${API_URL}/push-to-docs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -238,7 +279,6 @@ const Record = () => {
       const data = await response.json();
       
       if (data.needs_auth) {
-        // ✅ UPDATED
         const authResponse = await fetch(`${API_URL}/auth/google`, {
           credentials: 'include'
         });
@@ -318,12 +358,54 @@ const Record = () => {
                     <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg border-border hover:border-primary/50 transition-colors">
                       {isRecording ? (
                         <div className="text-center space-y-4">
-                          <div className="w-20 h-20 mx-auto rounded-full bg-destructive/10 flex items-center justify-center animate-pulse">
-                            <Mic className="w-10 h-10 text-destructive" />
+                          {/* ✅ NEW: Circular volume visualizer */}
+                          <div className="relative w-32 h-32 mx-auto">
+                            {/* Outer pulsing ring */}
+                            <svg className="absolute inset-0 w-full h-full -rotate-90">
+                              <circle
+                                cx="64"
+                                cy="64"
+                                r="60"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className="text-red-500/20"
+                              />
+                              {/* Animated volume ring */}
+                              <circle
+                                cx="64"
+                                cy="64"
+                                r="60"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                                strokeLinecap="round"
+                                className="text-red-500 transition-all duration-100"
+                                strokeDasharray={`${(volume / 100) * 377} 377`}
+                                style={{
+                                  filter: `drop-shadow(0 0 ${volume / 10}px rgb(239 68 68))`,
+                                }}
+                              />
+                            </svg>
+                            
+                            {/* Inner circle with mic icon */}
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div 
+                                className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center transition-all duration-100"
+                                style={{
+                                  transform: `scale(${1 + volume / 500})`,
+                                  boxShadow: `0 0 ${volume / 2}px rgba(239, 68, 68, 0.5)`,
+                                }}
+                              >
+                                <Mic className="w-10 h-10 text-red-500" />
+                              </div>
+                            </div>
                           </div>
+                          
                           <div className="space-y-2">
                             <p className="text-2xl font-mono font-bold">{formatTime(recordingTime)}</p>
                             <p className="text-sm text-muted-foreground">Recording in progress...</p>
+                            <p className="text-xs text-red-500 font-medium">Volume: {Math.round(volume)}%</p>
                           </div>
                           <Button onClick={stopRecording} variant="destructive" size="lg" className="gap-2">
                             <Square className="w-4 h-4" />
