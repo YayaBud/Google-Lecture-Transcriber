@@ -36,9 +36,16 @@ export const api = {
     });
     const data = await response.json();
     
-    // Store token for mobile
+    // 🐛 DEBUG LOGS
+    console.log('📱 Login response:', data);
+    console.log('🔑 Token received:', data.token ? `${data.token.substring(0, 20)}...` : 'NONE');
+    
     if (data.token) {
       localStorage.setItem('authToken', data.token);
+      console.log('💾 Token stored in localStorage');
+      console.log('✅ Verification - Token exists:', !!localStorage.getItem('authToken'));
+    } else {
+      console.error('❌ No token in response!');
     }
     
     return { response, data };
@@ -67,6 +74,8 @@ export const api = {
 
   getAuthStatus: async () => {
     const token = localStorage.getItem('authToken');
+    console.log('🔍 Checking auth with token:', token ? 'EXISTS' : 'MISSING');
+    
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;

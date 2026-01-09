@@ -271,24 +271,27 @@ def verify_token(token: str) -> dict:
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Check session first (for web browsers)
-        if 'user_id' in session:
-            request.user_id = session['user_id']
-            return f(*args, **kwargs)
-
-        # Check Authorization header (for mobile apps)
+        # ✅ CHECK TOKEN FIRST (for mobile - more reliable)
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
             token = auth_header.split(' ')[1]
             payload = verify_token(token)
             if payload:
-                # Set user_id in request context for the route
                 request.user_id = payload['user_id']
+                print(f"✅ Token auth successful for user: {payload['user_id']}")
                 return f(*args, **kwargs)
+            else:
+                print("❌ Invalid token")
+        
+        # Then check session (for desktop browsers)
+        if 'user_id' in session:
+            request.user_id = session['user_id']
+            print(f"✅ Session auth successful for user: {session['user_id']}")
+            return f(*args, **kwargs)
 
+        print("❌ No authentication found")
         return jsonify({'error': 'Authentication required', 'needs_login': True}), 401
     return decorated_function
-
 
 def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
     try:

@@ -10,6 +10,7 @@ import { useToast } from "../hooks/use-toast";
 import { FileText, Clock, Star, FolderOpen, Mic, Search } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { api } from '../lib/api';
+import { DebugAuth } from '../components/DebugAuth';
 
 interface Note {
   id: string;
@@ -290,6 +291,9 @@ const Dashboard = () => {
             <Mic className="w-6 h-6" />
           </Button>
         </main>
+
+        {/* 🐛 DEBUG COMPONENT - Shows auth info at bottom of screen */}
+        <DebugAuth />
       </div>
     </div>
   );
