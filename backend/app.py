@@ -343,7 +343,7 @@ def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
     except Exception as e:
         print(f"Gemini API error: {e}")
         raise
-'''
+
 def clean_transcript_with_gemini(raw_transcript: str) -> str:
     """Clean transcript errors using Gemini"""
     try:
@@ -355,7 +355,6 @@ TEXT: {raw_transcript}"""
     except Exception as e:
         print(f"Gemini cleaning failed: {e}, using original transcript")
         return raw_transcript
-'''
 
 def transcribe_with_google_speech(audio_path: str):
     try:
@@ -990,8 +989,8 @@ def transcribe_audio():
 
                 # Clean transcript with Gemini
                 
-                #print(f"🧹 Cleaning transcript with Gemini...")
-                #transcript = clean_transcript_with_gemini(transcript)
+                print(f"🧹 Cleaning transcript with Gemini...")
+                transcript = clean_transcript_with_gemini(transcript)
                 
                 # Clean up chunk file
                 try:
