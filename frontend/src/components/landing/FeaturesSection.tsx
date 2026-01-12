@@ -1,4 +1,5 @@
 import { Mic, Brain, FolderOpen, Search, Clock, Share2 } from "lucide-react";
+import SpotlightCard from "../ui/SpotlightCard";
 
 const features = [
   {
@@ -49,7 +50,7 @@ const FeaturesSection = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, index) => (
-            <div
+            <SpotlightCard
               key={feature.title}
               className="group p-6 rounded-2xl bg-card border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-elevated hover:scale-[1.03] hover:-translate-y-1 opacity-0 translate-y-8 animate-feature-fade-in"
               style={{ animationDelay: `${index * 0.1}s` }}
@@ -63,7 +64,7 @@ const FeaturesSection = () => {
               <p className="text-muted-foreground group-hover:text-foreground transition-colors duration-300">
                 {feature.description}
               </p>
-            </div>
+            </SpotlightCard>
           ))}
         </div>
       </div>

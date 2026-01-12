@@ -4,9 +4,9 @@ import { Link } from "react-router-dom";
 
 const CTASection = () => {
   return (
-    <section className="py-24 bg-black relative overflow-hidden">
+    <section className="py-24 bg-background relative overflow-hidden">
       {/* Background decoration */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-3xl" />
       </div>
 

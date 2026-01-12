@@ -195,7 +195,50 @@
 
 @layer base {
   :root {
-    --background: 0 0% 0%;           /* Black */
+    /* Light Theme */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 94%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 221 83% 53%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Dark Theme */
+    --background: 0 0% 0%;
     --foreground: 210 40% 98%;
 
     --card: 0 0% 5%;
@@ -210,16 +253,27 @@
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
 
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 212 26% 83%;
 
-    --radius: 0.75rem;
-  }
+    --popover: 0 0% 5%;
+    --popover-foreground: 210 40% 98%;
 
-  .dark {
-    --background: 0 0% 0%;           /* Change this to black! */
-    --foreground: 210 40% 98%;
+    --sidebar-background: 0 0% 3%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 210 40% 98%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 212 26% 83%;
   }
 
   html {
@@ -227,6 +281,6 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-300;
   }
 }
