@@ -28,7 +28,7 @@ import wave
 import struct
 import numpy as np
 import jwt
-
+import re
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -425,6 +425,66 @@ def decode_audio_to_np(path: str, target_sr: int = 16000) -> Tuple[Optional[np.n
         print(f"decode_audio_to_np failed: {e}")
         return None, None
 
+# ADD THIS FUNCTION in the helper functions section (after decode_audio_to_np):
+
+def chunk_audio_file(input_path, chunk_duration_sec=60):
+    """
+    Split audio/video file into smaller chunks for transcription.
+    Returns list of chunk file paths.
+    """
+    chunks = []
+    try:
+        # Get total duration using ffprobe
+        probe_cmd = [
+            'ffprobe', '-v', 'error', '-show_entries',
+            'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1',
+            input_path
+        ]
+        result = subprocess.run(probe_cmd, capture_output=True, text=True)
+        total_duration = float(result.stdout.strip())
+        
+        print(f"Total audio duration: {total_duration:.2f}s")
+        
+        # Calculate number of chunks needed
+        num_chunks = int(np.ceil(total_duration / chunk_duration_sec))
+        
+        # Create chunks
+        for i in range(num_chunks):
+            start_time = i * chunk_duration_sec
+            chunk_path = os.path.join(
+                tempfile.gettempdir(), 
+                f"chunk_{i}_{int(time.time())}.wav"
+            )
+            
+            # Extract chunk using ffmpeg
+            cmd = [
+                'ffmpeg', '-y', '-i', input_path,
+                '-ss', str(start_time),
+                '-t', str(chunk_duration_sec),
+                '-acodec', 'pcm_s16le',
+                '-ac', '1',
+                '-ar', '16000',
+                chunk_path
+            ]
+            
+            proc = subprocess.run(cmd, capture_output=True)
+            if proc.returncode == 0 and os.path.exists(chunk_path):
+                chunks.append(chunk_path)
+                print(f"Created chunk {i+1}/{num_chunks}: {chunk_path}")
+            else:
+                print(f"Failed to create chunk {i}")
+        
+        return chunks
+    
+    except Exception as e:
+        print(f"Error chunking audio: {e}")
+        # Cleanup any created chunks on error
+        for chunk in chunks:
+            try:
+                os.unlink(chunk)
+            except:
+                pass
+        return []
 
 # ===========================
 # 🔐 AUTHENTICATION ROUTES - UPDATED
@@ -843,8 +903,6 @@ def transcribe_audio():
         if 'audio' not in request.files:
             return jsonify({'error': 'No audio file provided'}), 400
 
-
-        method = request.form.get('method', 'whisper')
         audio_file = request.files['audio']
         ts = int(time.time())
 
@@ -858,11 +916,9 @@ def transcribe_audio():
             else:
                 orig_ext = '.mp4'
 
-
         with tempfile.NamedTemporaryFile(delete=False, suffix=orig_ext) as tf:
             audio_file.save(tf.name)
             temp_path = tf.name
-
 
         print(f"Saved upload to: {temp_path} (Size: {os.path.getsize(temp_path)} bytes)")
 
@@ -872,19 +928,65 @@ def transcribe_audio():
         start_time = time.time()
         transcript = None
         language = 'en'
+        
+        # Check if Whisper model is loaded
+        if model is None:
+            return jsonify({'error': 'Whisper model not loaded'}), 500
 
-        if method == 'google':
-            print(f"🎤 Using Google Speech-to-Text...")
-            transcript, language = transcribe_with_google_speech(temp_path)
+        # Get audio duration
+        probe_cmd = [
+            'ffprobe', '-v', 'error', '-show_entries',
+            'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1',
+            temp_path
+        ]
+        duration_result = subprocess.run(probe_cmd, capture_output=True, text=True)
+        
+        try:
+            duration = float(duration_result.stdout.strip())
+        except:
+            duration = 0
+        
+        print(f"📊 Audio duration: {duration:.2f}s")
 
-            if not transcript:
-                print("⚠️ Google Speech failed, falling back to Whisper...")
-                method = 'whisper'
-
-        if method == 'whisper' or not transcript:
-            if model is None:
-                return jsonify({'error': 'Whisper model not loaded'}), 500
-
+        # Use chunking for files longer than 60 seconds
+        if duration > 60:
+            print(f"🎤 Using Whisper with chunking (file > 60s)...")
+            chunks = chunk_audio_file(temp_path, chunk_duration_sec=60)
+            
+            if not chunks:
+                return jsonify({'error': 'Failed to chunk audio file'}), 500
+            
+            chunk_transcripts = []
+            for idx, chunk_path in enumerate(chunks):
+                print(f"🎤 Transcribing chunk {idx+1}/{len(chunks)}...")
+                
+                segments, info = model.transcribe(
+                    chunk_path,
+                    language=None,
+                    task='translate',
+                    beam_size=5,
+                    vad_filter=True,
+                    vad_parameters=dict(min_silence_duration_ms=500),
+                    temperature=0.0,
+                    condition_on_previous_text=False,
+                )
+                
+                chunk_transcript = ' '.join([segment.text.strip() for segment in segments])
+                chunk_transcript = chunk_transcript.replace(' um ', ' ').replace(' uh ', ' ').strip()
+                chunk_transcripts.append(chunk_transcript)
+                language = info.language
+                
+                # Clean up chunk file
+                try:
+                    os.unlink(chunk_path)
+                except:
+                    pass
+            
+            transcript = ' '.join(chunk_transcripts)
+            print(f"✅ Merged {len(chunk_transcripts)} chunks")
+            
+        else:
+            # Original approach for short files
             print(f"🎤 Using Whisper (local)...")
             segments, info = model.transcribe(
                 temp_path,
@@ -899,16 +1001,14 @@ def transcribe_audio():
             transcript = ' '.join([segment.text.strip() for segment in segments])
             transcript = transcript.replace(' um ', ' ').replace(' uh ', ' ').strip()
             language = info.language
-            method = 'whisper'
 
         elapsed_time = time.time() - start_time
-        print(f"✅ Transcription completed in {elapsed_time:.2f}s using {method}")
+        print(f"✅ Transcription completed in {elapsed_time:.2f}s using Whisper")
 
         try:
             os.unlink(temp_path)
         except:
             pass
-
 
         return jsonify({
             'transcript': transcript,
@@ -916,14 +1016,12 @@ def transcribe_audio():
             'length': len(transcript),
             'duration': f"{elapsed_time:.2f}s",
             'language': language,
-            'method': method
+            'method': 'whisper'
         })
-
 
     except Exception as e:
         print(f"ERROR: {e}")
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/generate-notes', methods=['POST'])
 @login_required
@@ -937,10 +1035,8 @@ def generate_notes():
 
         prompt = f"""You are an expert note-taker. Analyze the following lecture transcript and create structured, easy-to-read notes.
 
-
 TRANSCRIPT:
 {transcript}
-
 
 INSTRUCTIONS:
 1. Identify the Main Topic.
@@ -948,19 +1044,15 @@ INSTRUCTIONS:
 3. Extract Important Concepts and define them briefly.
 4. Provide a concise Summary.
 
-
 OUTPUT FORMAT:
 ## Main Topic
-
 
 ### Key Points
 - [Point 1]
 - [Point 2]
 
-
 ### Important Concepts
 - **[Concept]**: [Definition]
-
 
 ### Summary
 [Summary text]
@@ -970,6 +1062,47 @@ OUTPUT FORMAT:
         notes = generate_with_gemini(prompt)
         print(f"Notes generated successfully!")
 
+        # ✨ NEW: Extract AI-generated title from Main Topic
+        import re
+        title = None
+        
+        # Try to extract the Main Topic section
+        title_match = re.search(r'## Main Topic\s*\n+(.+?)(?:\n|$)', notes, re.IGNORECASE)
+        
+        if title_match:
+            title = title_match.group(1).strip()
+            # Remove any markdown formatting
+            title = re.sub(r'[#*_`]', '', title)
+            # Limit to 80 characters for UI
+            if len(title) > 80:
+                title = title[:77] + '...'
+            print(f"📝 Extracted title from Main Topic: {title}")
+        
+        # Fallback: Use Gemini to generate a title if extraction fails
+        if not title or len(title) < 5:
+            print("⚠️ Could not extract title, generating with Gemini...")
+            title_prompt = f"""Based on these lecture notes, generate a short, descriptive title (max 60 characters). 
+Return ONLY the title, nothing else.
+
+NOTES:
+{notes[:500]}"""
+            
+            try:
+                title = generate_with_gemini(title_prompt, timeout=10).strip()
+                # Remove quotes if Gemini added them
+                title = title.strip('"\'')
+                if len(title) > 80:
+                    title = title[:77] + '...'
+                print(f"📝 Generated title with Gemini: {title}")
+            except Exception as e:
+                print(f"❌ Error generating title: {e}")
+                title = None
+        
+        # Final fallback: Use timestamp
+        if not title or len(title) < 5:
+            title = f"Lecture Notes {time.strftime('%Y-%m-%d %H:%M')}"
+            print(f"📝 Using fallback timestamp title: {title}")
+
         # Get user_id from request context (set by login_required decorator)
         user_id = getattr(request, 'user_id', session.get('user_id'))
 
@@ -978,21 +1111,21 @@ OUTPUT FORMAT:
             'transcript': transcript,
             'content': notes,
             'preview': notes[:150] + '...' if len(notes) > 150 else notes,
-            'title': f"Lecture Notes {time.strftime('%Y-%m-%d %H:%M')}",
+            'title': title,  # ← AI-generated title!
             'created_at': time.time(),
             'updated_at': time.time()
         }).inserted_id
 
-
         return jsonify({
             'notes': notes,
             'note_id': str(note_id),
+            'title': title,  # ← Return title to frontend
             'success': True
         })
+        
     except Exception as e:
         print(f"ERROR generating notes: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 # ===========================
 # 📄 NOTES MANAGEMENT ROUTES
