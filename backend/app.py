@@ -345,15 +345,34 @@ def generate_with_gemini(prompt: str, timeout: int = 120) -> str:
         raise
 
 def clean_transcript_with_gemini(raw_transcript: str) -> str:
-    """Clean transcript errors using Gemini"""
+    """Clean transcript errors using Gemini with academic context"""
     try:
-        prompt = f"""Fix transcription errors in this text. Correct misheard words (like "My Tocondria" → "Mitochondria"), preserve meaning, keep conversational tone. Return ONLY the corrected text, no explanations.
+        prompt = f"""You are correcting a lecture/educational transcript with potential speech-to-text errors.
 
-TEXT: {raw_transcript}"""
+CONTEXT: This is from an academic lecture (science, medicine, engineering, etc.)
+
+COMMON ERRORS:
+- Scientific terms misheard (e.g., "My Tocondria" → "Mitochondria")
+- Technical jargon garbled
+- Acronyms misinterpreted
+
+RULES:
+1. Fix obvious misheard words using academic context
+2. Preserve the speaker's exact meaning
+3. Keep conversational tone (it's spoken lecture, not written essay)
+4. If a word could be scientific, assume it is
+5. Return ONLY the corrected text, no explanations
+
+TRANSCRIPT TO FIX:
+{raw_transcript}
+
+CORRECTED VERSION:"""
         
-        return generate_with_gemini(prompt, timeout=30)
+        cleaned = generate_with_gemini(prompt, timeout=30)
+        print(f"✅ Transcript cleaned: {len(raw_transcript)} → {len(cleaned)} chars")
+        return cleaned
     except Exception as e:
-        print(f"Gemini cleaning failed: {e}, using original transcript")
+        print(f"❌ Gemini cleaning failed: {e}, using original")
         return raw_transcript
 
 def transcribe_with_google_speech(audio_path: str):
