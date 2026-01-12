@@ -120,7 +120,7 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 # ===========================
 # 7️⃣ GEMINI SETUP
 # ===========================
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")  # ✅ Using 1.5-flash for stability
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 print(f"🔑 Using Gemini API Key: {os.getenv('GEMINI_API_KEY')[:20] if os.getenv('GEMINI_API_KEY') else 'NOT SET'}...")
 
@@ -199,10 +199,13 @@ if not os.path.exists(CLIENT_SECRET_FILE):
 DEBUG_DIR = os.path.join(os.path.dirname(__file__), 'debug_audio')
 os.makedirs(DEBUG_DIR, exist_ok=True)
 
+# ✅ AUDIO STORAGE DIRECTORY
+AUDIO_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'stored_audio')
+os.makedirs(AUDIO_STORAGE_DIR, exist_ok=True)
+print(f"✅ Audio storage directory: {AUDIO_STORAGE_DIR}")
 
 WHISPER_MODEL = os.getenv('WHISPER_MODEL', 'tiny')
 print(f"Loading Whisper model: {WHISPER_MODEL} on {DEVICE}...")
-
 
 try:
     model = WhisperModel(
@@ -216,7 +219,6 @@ try:
 except Exception as e:
     print(f"❌ Error loading Whisper model: {e}")
     model = None
-
 
 # Check for ffmpeg
 ffmpeg_path = shutil.which('ffmpeg')
@@ -235,7 +237,7 @@ def after_request(response):
     origin = request.headers.get('Origin')
 
     # ✅ EXPANDED: Allow credentials from allowed origins INCLUDING mobile
-    allowed_origins = [
+    allowed_origins_list = [
         'https://google-lecture-transcriber.vercel.app',
         'http://localhost:5173',
         'http://localhost:5000',
@@ -248,7 +250,7 @@ def after_request(response):
     ]
 
     # ✅ Allow requests with no origin (mobile apps sometimes send null)
-    if origin in allowed_origins or origin is None:
+    if origin in allowed_origins_list or origin is None:
         if origin:
             response.headers['Access-Control-Allow-Origin'] = origin
         else:
@@ -455,8 +457,6 @@ def decode_audio_to_np(path: str, target_sr: int = 16000) -> Tuple[Optional[np.n
         print(f"decode_audio_to_np failed: {e}")
         return None, None
 
-# ADD THIS FUNCTION in the helper functions section (after decode_audio_to_np):
-
 def chunk_audio_file(input_path, chunk_duration_sec=60):
     """
     Split audio/video file into smaller chunks for transcription.
@@ -601,20 +601,14 @@ def google_login_callback():
         session['user_id'] = str(user_id)
         session.permanent = True
         
-        # 🔍 DEBUG: Log session info
-        print(f"🔍 Session set: user_id={session.get('user_id')}")
-        print(f"🔍 Session keys: {list(session.keys())}")
-
         # ✅ Create JWT token for mobile/all platforms
         token = create_access_token(str(user_id))
 
         print(f"✅ User {email} logged in successfully via Google OAuth!")
         print(f"✅ Generated token for user: {str(user_id)}")
-        print(f"🔍 Token (first 50 chars): {token[:50]}...")
 
         # ✅ Redirect with token in URL for mobile compatibility
         redirect_url = f"{FRONTEND_REDIRECT}/dashboard?token={token}"
-        print(f"🔍 Redirecting to: {redirect_url}")
         
         return redirect(redirect_url)
 
@@ -763,8 +757,6 @@ def logout():
     print("✅ User logged out")
     return jsonify({'success': True, 'message': 'Logged out successfully'})
 
-# Add this route after the /auth/status route
-
 @app.route('/auth/verify-token', methods=['POST'])
 def verify_token_endpoint():
     """Verify a JWT token and return user info - for handling OAuth redirects"""
@@ -794,7 +786,7 @@ def verify_token_endpoint():
         return jsonify({
             'success': True,
             'authenticated': True,
-            'token': token,  # Return the token back
+            'token': token,
             'user': {
                 'id': str(user['_id']),
                 'email': user.get('email'),
@@ -866,62 +858,6 @@ def get_current_user():
 
 
 # ===========================
-# 🐛 DEBUG ENDPOINTS - Remove in production!
-# ===========================
-
-@app.route('/debug/auth', methods=['GET'])
-def debug_auth():
-    """Debug authentication - shows what auth methods are detected"""
-    debug_info = {
-        'timestamp': datetime.utcnow().isoformat(),
-        'request_info': {
-            'origin': request.headers.get('Origin'),
-            'user_agent': request.headers.get('User-Agent'),
-            'referer': request.headers.get('Referer'),
-        },
-        'session_info': {
-            'has_session': 'user_id' in session,
-            'session_user_id': session.get('user_id'),
-            'session_keys': list(session.keys()) if session else []
-        },
-        'token_info': {
-            'has_auth_header': 'Authorization' in request.headers,
-            'auth_header': request.headers.get('Authorization', '')[:50] if 'Authorization' in request.headers else None,
-        },
-        'cookies': {
-            'cookie_header': request.headers.get('Cookie', '')[:100] if request.headers.get('Cookie') else None,
-        }
-    }
-    
-    # Try to verify token if present
-    auth_header = request.headers.get('Authorization')
-    if auth_header and auth_header.startswith('Bearer '):
-        token = auth_header.split(' ')[1]
-        payload = verify_token(token)
-        debug_info['token_info']['token_valid'] = payload is not None
-        if payload:
-            debug_info['token_info']['token_user_id'] = payload.get('user_id')
-            debug_info['token_info']['token_expires'] = datetime.fromtimestamp(payload.get('exp')).isoformat() if payload.get('exp') else None
-    
-    return jsonify(debug_info)
-
-
-@app.route('/debug/test-auth', methods=['GET'])
-@login_required
-def debug_test_auth():
-    """Test if authentication is working"""
-    user_id = request.user_id
-    auth_method = request.auth_method
-    
-    return jsonify({
-        'success': True,
-        'message': 'Authentication successful!',
-        'user_id': user_id,
-        'auth_method': auth_method
-    })
-
-
-# ===========================
 # 🎙️ TRANSCRIPTION ROUTES
 # ===========================
 
@@ -978,7 +914,7 @@ def transcribe_audio():
         
         print(f"📊 Audio duration: {duration:.2f}s")
 
-        # Use chunking for files longer than 60 seconds
+        # ✅ CORRECT CHUNKING LOGIC
         if duration > 60:
             print(f"🎤 Using Whisper with chunking (file > 60s)...")
             chunks = chunk_audio_file(temp_path, chunk_duration_sec=60)
@@ -1005,11 +941,6 @@ def transcribe_audio():
                 chunk_transcript = chunk_transcript.replace(' um ', ' ').replace(' uh ', ' ').strip()
                 chunk_transcripts.append(chunk_transcript)
                 language = info.language
-
-                # Clean transcript with Gemini
-                
-                print(f"🧹 Cleaning transcript with Gemini...")
-                transcript = clean_transcript_with_gemini(transcript)
                 
                 # Clean up chunk file
                 try:
@@ -1017,8 +948,13 @@ def transcribe_audio():
                 except:
                     pass
             
+            # ✅ MERGE CHUNKS FIRST, THEN CLEAN ONCE
             transcript = ' '.join(chunk_transcripts)
             print(f"✅ Merged {len(chunk_transcripts)} chunks")
+            
+            # ✅ NOW clean the merged transcript with Gemini
+            print(f"🧹 Cleaning merged transcript with Gemini...")
+            transcript = clean_transcript_with_gemini(transcript)
             
         else:
             # Original approach for short files
@@ -1036,9 +972,19 @@ def transcribe_audio():
             transcript = ' '.join([segment.text.strip() for segment in segments])
             transcript = transcript.replace(' um ', ' ').replace(' uh ', ' ').strip()
             language = info.language
+            
+            # ✅ Clean short transcripts too
+            print(f"🧹 Cleaning transcript with Gemini...")
+            transcript = clean_transcript_with_gemini(transcript)
 
         elapsed_time = time.time() - start_time
         print(f"✅ Transcription completed in {elapsed_time:.2f}s using Whisper")
+
+        # ✅ SAVE AUDIO FILE for playback
+        audio_filename = f"{ts}_{request.user_id}.webm"
+        saved_audio_path = os.path.join(AUDIO_STORAGE_DIR, audio_filename)
+        shutil.copy(temp_path, saved_audio_path)
+        print(f"💾 Saved audio to: {saved_audio_path}")
 
         try:
             os.unlink(temp_path)
@@ -1047,6 +993,7 @@ def transcribe_audio():
 
         return jsonify({
             'transcript': transcript,
+            'audio_url': f'/audio/{audio_filename}',  # ← Return audio URL
             'success': True,
             'length': len(transcript),
             'duration': f"{elapsed_time:.2f}s",
@@ -1057,6 +1004,7 @@ def transcribe_audio():
     except Exception as e:
         print(f"ERROR: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/generate-notes', methods=['POST'])
 @login_required
@@ -1097,7 +1045,7 @@ OUTPUT FORMAT:
         notes = generate_with_gemini(prompt)
         print(f"Notes generated successfully!")
 
-        # ✨ NEW: Extract AI-generated title from Main Topic
+        # ✨ Extract AI-generated title from Main Topic
         import re
         title = None
         
@@ -1146,7 +1094,7 @@ NOTES:
             'transcript': transcript,
             'content': notes,
             'preview': notes[:150] + '...' if len(notes) > 150 else notes,
-            'title': title,  # ← AI-generated title!
+            'title': title,
             'created_at': time.time(),
             'updated_at': time.time()
         }).inserted_id
@@ -1154,7 +1102,7 @@ NOTES:
         return jsonify({
             'notes': notes,
             'note_id': str(note_id),
-            'title': title,  # ← Return title to frontend
+            'title': title,
             'success': True
         })
         
@@ -1568,7 +1516,6 @@ def oauth2callback():
     if 'user_id' not in session:
         return redirect(f"{FRONTEND_REDIRECT}/login")
 
-
     state = session['state']
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRET_FILE,
@@ -1604,7 +1551,6 @@ def push_to_docs():
         user = users_collection.find_one({'_id': ObjectId(user_id)})
         if not user or 'google_credentials' not in user:
              return jsonify({'error': 'Google account not connected', 'needs_auth': True}), 401
-
 
         creds_data = user['google_credentials']
         credentials = Credentials(**creds_data)
@@ -1669,6 +1615,35 @@ def push_to_docs():
         print(f"ERROR pushing to docs: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# ===========================
+# 🎵 AUDIO PLAYBACK ROUTE
+# ===========================
+
+@app.route('/audio/<filename>')
+@login_required
+def serve_audio(filename):
+    """Serve stored audio files for playback"""
+    try:
+        # Security: Verify file belongs to user
+        user_id = getattr(request, 'user_id', session.get('user_id'))
+        
+        # Extract user_id from filename (format: timestamp_userid.webm)
+        if f"_{user_id}" not in filename:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        file_path = os.path.join(AUDIO_STORAGE_DIR, filename)
+        
+        if not os.path.exists(file_path):
+            return jsonify({'error': 'Audio file not found'}), 404
+        
+        return send_file(
+            file_path,
+            mimetype='audio/webm',
+            as_attachment=False
+        )
+    except Exception as e:
+        print(f"Error serving audio: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # ===========================
 # ❤️ HEALTH CHECK

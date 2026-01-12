@@ -2,7 +2,7 @@ import DashboardSidebar from "../components/dashboard/DashboardSidebar";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Mic, Square, Loader2, FileText, Upload, Download } from "lucide-react";
+import { Mic, Square, Loader2, FileText, Upload, Download, Play, Pause } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useToast } from "../hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
@@ -10,6 +10,11 @@ import ReactMarkdown from 'react-markdown';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const Record = () => {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -140,7 +145,6 @@ const Record = () => {
     formData.append('audio', audioBlob, selectedFile?.name || 'recording.webm');
 
     try {
-      // ✅ ADD AUTH TOKEN
       const token = localStorage.getItem('auth_token');
       console.log('🔐 Token:', token ? 'Present' : 'Missing');
       
@@ -159,6 +163,13 @@ const Record = () => {
 
       const data = await response.json();
       setTranscript(data.transcript);
+
+      // ✅ Store audio URL for playback
+      if (data.audio_url) {
+        const fullAudioUrl = `${API_URL}${data.audio_url}`;
+        setAudioUrl(fullAudioUrl);
+        console.log('🎵 Audio URL:', fullAudioUrl);
+      }
      
       toast({
         title: "Transcription complete",
@@ -188,7 +199,6 @@ const Record = () => {
 
     setIsGenerating(true);
     try {
-      // ✅ ADD AUTH TOKEN
       const token = localStorage.getItem('auth_token');
       
       const response = await fetch(`${API_URL}/generate-notes`, {
@@ -236,7 +246,6 @@ const Record = () => {
 
     setIsPushing(true);
     try {
-      // ✅ ADD AUTH TOKEN
       const token = localStorage.getItem('auth_token');
       
       const response = await fetch(`${API_URL}/push-to-docs`, {
@@ -311,6 +320,24 @@ const Record = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // ✅ Audio player controls
+  const togglePlayPause = () => {
+    if (!audioRef.current) return;
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!audioRef.current) return;
+    const time = parseFloat(e.target.value);
+    audioRef.current.currentTime = time;
+    setCurrentTime(time);
   };
 
   return (
@@ -426,7 +453,7 @@ const Record = () => {
               </CardContent>
             </Card>
 
-            {/* Transcript Card */}
+            {/* Transcript Card with Audio Player */}
             {transcript && (
               <Card>
                 <CardHeader>
@@ -441,11 +468,71 @@ const Record = () => {
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                  {/* ✅ Audio Player */}
+                  {audioUrl && (
+                    <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">🎵 Audio Playback</span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatTime(Math.floor(currentTime))} / {formatTime(Math.floor(duration))}
+                        </span>
+                      </div>
+                      
+                      {/* Custom Audio Controls */}
+                      <div className="flex items-center gap-3">
+                        <Button
+                          onClick={togglePlayPause}
+                          size="sm"
+                          variant="outline"
+                          className="h-10 w-10 rounded-full p-0"
+                        >
+                          {isPlaying ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4 ml-0.5" />
+                          )}
+                        </Button>
+                        
+                        <input
+                          type="range"
+                          min="0"
+                          max={duration || 0}
+                          value={currentTime}
+                          onChange={handleSeek}
+                          className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer slider"
+                          style={{
+                            background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) 100%)`
+                          }}
+                        />
+                      </div>
+
+                      {/* Hidden HTML5 Audio Element */}
+                      <audio
+                        ref={audioRef}
+                        src={audioUrl}
+                        onTimeUpdate={(e) => {
+                          const audio = e.currentTarget;
+                          setCurrentTime(audio.currentTime);
+                        }}
+                        onLoadedMetadata={(e) => {
+                          const audio = e.currentTarget;
+                          setDuration(audio.duration);
+                        }}
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                        onEnded={() => setIsPlaying(false)}
+                        className="hidden"
+                      />
+                    </div>
+                  )}
+
+                  {/* Transcript Text */}
                   <div className="p-4 bg-muted/50 rounded-lg max-h-64 overflow-auto">
                     <p className="whitespace-pre-wrap text-sm">{transcript}</p>
                   </div>
-                  <div className="flex justify-center mt-4">
+
+                  <div className="flex justify-center">
                     <Button
                       onClick={generateNotes}
                       disabled={isGenerating}
