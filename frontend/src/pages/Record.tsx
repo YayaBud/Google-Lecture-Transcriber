@@ -547,12 +547,20 @@ const Record = () => {
                       />
                     </div>
                   )}
-
-                  {/* Transcript Text */}
-                  <div className="p-4 bg-muted/50 rounded-lg max-h-64 overflow-auto">
-                    <p className="whitespace-pre-wrap text-sm">{transcript}</p>
+          
+                  {/* ✅ Editable Transcript Text */}
+                  <div className="space-y-2">
+                    <textarea
+                      value={transcript}
+                      onChange={(e) => setTranscript(e.target.value)}
+                      className="w-full p-4 bg-muted/50 rounded-lg max-h-64 min-h-[200px] overflow-auto text-sm resize-y border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="Your transcript will appear here. You can edit it before generating notes."
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      💡 Tip: You can edit the transcript before generating notes
+                    </p>
                   </div>
-
+                  
                   <div className="flex justify-center">
                     <Button
                       onClick={generateNotes}
