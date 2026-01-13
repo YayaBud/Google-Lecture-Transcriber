@@ -1856,15 +1856,24 @@ def google_login_callback():
 # ===========================
 
 @app.route('/audio/<filename>')
-@login_required
 def serve_audio(filename):
-    """Serve stored audio files for playback"""
+    """Serve stored audio files for playback - Auth optional for direct links"""
     try:
-        # Security: Verify file belongs to user
-        user_id = getattr(request, 'user_id', session.get('user_id'))
+        # Try to get user_id from token or session
+        user_id = None
+        auth_header = request.headers.get('Authorization')
         
-        # Extract user_id from filename (format: timestamp_userid.webm)
-        if f"_{user_id}" not in filename:
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            payload = verify_token(token)
+            if payload:
+                user_id = payload['user_id']
+        
+        if not user_id and 'user_id' in session:
+            user_id = session['user_id']
+        
+        # ✅ SECURITY: Verify file belongs to user (if we have user_id)
+        if user_id and f"_{user_id}" not in filename:
             return jsonify({'error': 'Unauthorized'}), 403
         
         file_path = os.path.join(AUDIO_STORAGE_DIR, filename)
@@ -1872,10 +1881,12 @@ def serve_audio(filename):
         if not os.path.exists(file_path):
             return jsonify({'error': 'Audio file not found'}), 404
         
+        # ✅ Return file with proper headers for audio playback
         return send_file(
             file_path,
             mimetype='audio/webm',
-            as_attachment=False
+            as_attachment=False,
+            conditional=True  # Enable range requests for seeking
         )
     except Exception as e:
         print(f"Error serving audio: {e}")
