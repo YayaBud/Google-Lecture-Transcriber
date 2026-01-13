@@ -534,7 +534,8 @@ def google_login():
     )
     authorization_url, state = flow.authorization_url(
         access_type='offline',
-        include_granted_scopes='true'
+        include_granted_scopes='true',
+        prompt='consent'  # ✅ Forces refresh token
     )
     session['state'] = state
     return redirect(authorization_url)
@@ -1550,105 +1551,40 @@ def google_auth_status():
         print(f"Error checking Google auth status: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/auth/google/callback')
-def google_login_callback():
-    if not CLIENT_SECRET_FILE:
-        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_not_configured')
-    
+
+@app.route('/auth/google/revoke')
+@login_required
+def revoke_google_access():
+    """Revoke Google access to force refresh token on next login"""
     try:
-        if 'state' not in session:
-            print("❌ State missing from session")
-            return redirect(f'{FRONTEND_REDIRECT}/login?error=state_missing')
-        
-        state = session['state']
-        flow = Flow.from_client_secrets_file(
-            CLIENT_SECRET_FILE,
-            scopes=LOGIN_SCOPES,
-            state=state,
-            redirect_uri=f'{BASE_URL}/auth/google/callback'
-        )
-        
-        flow.fetch_token(authorization_response=request.url)
-        credentials = flow.credentials
-        
-        # ✅ BUILD COMPLETE CREDENTIALS OBJECT
-        creds_data = {
-            'token': credentials.token,
-            'refresh_token': credentials.refresh_token,
-            'token_uri': credentials.token_uri,
-            'client_id': credentials.client_id,
-            'client_secret': credentials.client_secret,
-            'scopes': credentials.scopes
-        }
-        
-        # ✅ VALIDATE ALL REQUIRED FIELDS ARE PRESENT
-        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
-        missing_fields = [field for field in required_fields if not creds_data.get(field)]
-        
-        if missing_fields:
-            print(f"❌ Missing credential fields after OAuth: {missing_fields}")
-            return redirect(f'{FRONTEND_REDIRECT}/login?error=incomplete_credentials')
-        
-        print("✅ All credential fields present")
-        
-        # Get user info
-        service = build('oauth2', 'v2', credentials=credentials)
-        userinfo = service.userinfo().get().execute()
-        
-        email = userinfo.get('email')
-        first_name = userinfo.get('given_name', '')
-        last_name = userinfo.get('family_name', '')
-        
-        if not email:
-            return redirect(f'{FRONTEND_REDIRECT}/login?error=no_email')
-        
-        # Find or create user
-        user = users_collection.find_one({'email': email})
-        
-        if user:
-            # ✅ UPDATE existing user with complete credentials
+        user_id = getattr(request, 'user_id', session.get('user_id'))
+        user = users_collection.find_one({'_id': ObjectId(user_id)})
+
+        if user and 'google_credentials' in user:
+            creds_data = user['google_credentials']
+            token = creds_data.get('token')
+
+            if token:
+                # Revoke the token
+                import requests
+                revoke_url = f'https://oauth2.googleapis.com/revoke?token={token}'
+                requests.post(revoke_url)
+                print(f"✅ Revoked Google access for user {user_id}")
+
+            # Remove credentials from database
             users_collection.update_one(
-                {'_id': user['_id']},
-                {'$set': {
-                    'google_credentials': creds_data,
-                    'first_name': first_name,
-                    'last_name': last_name
-                }}
+                {'_id': ObjectId(user_id)},
+                {'$unset': {'google_credentials': ''}}
             )
-            user_id = str(user['_id'])
-            print(f"✅ Updated existing user {email} with Google credentials")
-        else:
-            # ✅ CREATE new user with complete credentials
-            new_user = {
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'google_credentials': creds_data,
-                'created_at': time.time()
-            }
-            result = users_collection.insert_one(new_user)
-            user_id = str(result.inserted_id)
-            print(f"✅ Created new user {email} with Google credentials")
-        
-        # Create JWT token
-        token = create_access_token(user_id)
-        
-        # Set session
-        session['user_id'] = user_id
-        
-        # ✅ REDIRECT WITH TOKEN
-        return redirect(f'{FRONTEND_REDIRECT}/dashboard?token={token}')
-        
+
+        return jsonify({
+            'success': True,
+            'message': 'Google access revoked. Please sign in again.'
+        })
+
     except Exception as e:
-        print(f"❌ OAuth callback error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_failed')
-
-
-# ===========================
-# 🎵 AUDIO PLAYBACK ROUTE
-# ===========================
+        print(f"Error revoking access: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/notes/<note_id>/export-google-docs', methods=['POST'])
@@ -1792,6 +1728,132 @@ def export_to_google_docs(note_id):
             }), 401
 
         return jsonify({'error': str(e)}), 500
+
+@app.route('/auth/google/callback')
+def google_login_callback():
+    if not CLIENT_SECRET_FILE:
+        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_not_configured')
+
+    try:
+        if 'state' not in session:
+            print("❌ State missing from session")
+            return redirect(f'{FRONTEND_REDIRECT}/login?error=state_missing')
+
+        state = session['state']
+        flow = Flow.from_client_secrets_file(
+            CLIENT_SECRET_FILE,
+            scopes=LOGIN_SCOPES,
+            state=state,
+            redirect_uri=f'{BASE_URL}/auth/google/callback'
+        )
+
+        flow.fetch_token(authorization_response=request.url)
+        credentials = flow.credentials
+
+        # ✅ BUILD COMPLETE CREDENTIALS OBJECT
+        creds_data = {
+            'token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes
+        }
+
+        # ✅ CHECK IF REFRESH TOKEN IS MISSING
+        if not creds_data.get('refresh_token'):
+            print("⚠️ No refresh token received - checking if user has existing credentials")
+
+            # Get user info first
+            service = build('oauth2', 'v2', credentials=credentials)
+            userinfo = service.userinfo().get().execute()
+            email = userinfo.get('email')
+
+            if email:
+                # Check if user already exists with refresh token
+                existing_user = users_collection.find_one({'email': email})
+
+                if existing_user and existing_user.get('google_credentials', {}).get('refresh_token'):
+                    # ✅ USE EXISTING REFRESH TOKEN
+                    print(f"✅ Using existing refresh token for {email}")
+                    creds_data['refresh_token'] = existing_user['google_credentials']['refresh_token']
+                else:
+                    # ❌ NO REFRESH TOKEN AVAILABLE - NEED TO REVOKE AND RE-AUTH
+                    print(f"❌ No refresh token available for {email}")
+                    return redirect(f'{FRONTEND_REDIRECT}/login?error=no_refresh_token&action=revoke')
+
+        # ✅ VALIDATE ALL REQUIRED FIELDS ARE PRESENT
+        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
+        missing_fields = [field for field in required_fields if not creds_data.get(field)]
+
+        if missing_fields:
+            print(f"❌ Missing credential fields after OAuth: {missing_fields}")
+            return redirect(f'{FRONTEND_REDIRECT}/login?error=incomplete_credentials&missing={",".join(missing_fields)}')
+
+        print("✅ All credential fields present")
+
+        # Get user info
+        service = build('oauth2', 'v2', credentials=credentials)
+        userinfo = service.userinfo().get().execute()
+
+        email = userinfo.get('email')
+        first_name = userinfo.get('given_name', '')
+        last_name = userinfo.get('family_name', '')
+
+        if not email:
+            return redirect(f'{FRONTEND_REDIRECT}/login?error=no_email')
+
+        # Find or create user
+        user = users_collection.find_one({'email': email})
+
+        if user:
+            # ✅ UPDATE existing user with complete credentials
+            users_collection.update_one(
+                {'_id': user['_id']},
+                {'$set': {
+                    'google_credentials': creds_data,
+                    'first_name': first_name,
+                    'last_name': last_name
+                }}
+            )
+            user_id = str(user['_id'])
+            print(f"✅ Updated existing user {email} with Google credentials")
+        else:
+            # ✅ CREATE new user with complete credentials
+            new_user = {
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'google_credentials': creds_data,
+                'created_at': time.time(),
+                'auth_provider': 'google'
+            }
+            result = users_collection.insert_one(new_user)
+            user_id = str(result.inserted_id)
+            print(f"✅ Created new user {email} with Google credentials")
+
+        # Create JWT token
+        token = create_access_token(user_id)
+
+        # Set session
+        session['user_id'] = user_id
+        session.permanent = True
+
+        print(f"✅ User {email} logged in successfully!")
+
+        # ✅ REDIRECT WITH TOKEN
+        return redirect(f'{FRONTEND_REDIRECT}/dashboard?token={token}')
+
+    except Exception as e:
+        print(f"❌ OAuth callback error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_failed')
+
+
+# ===========================
+# 🎵 AUDIO PLAYBACK ROUTE
+# ===========================
 
 @app.route('/audio/<filename>')
 @login_required
