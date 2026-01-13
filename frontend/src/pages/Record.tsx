@@ -7,7 +7,9 @@ import { useState, useRef, useEffect } from "react";
 import { useToast } from "../hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
 
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 
 const Record = () => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -21,6 +23,7 @@ const Record = () => {
   const [transcript, setTranscript] = useState("");
   const [notes, setNotes] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [hasTranscribed, setHasTranscribed] = useState(false); // ✅ NEW: Track if transcription happened
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -31,6 +34,7 @@ const Record = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+
   useEffect(() => {
     return () => {
       if (timerRef.current) {
@@ -38,6 +42,7 @@ const Record = () => {
       }
     };
   }, []);
+
 
   const startRecording = async () => {
     try {
@@ -57,17 +62,20 @@ const Record = () => {
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
+
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           chunksRef.current.push(e.data);
         }
       };
 
+
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
       };
+
 
       mediaRecorder.start(1000);
       setIsRecording(true);
@@ -76,6 +84,7 @@ const Record = () => {
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
+
 
       toast({
         title: "Recording started",
@@ -89,6 +98,7 @@ const Record = () => {
       });
     }
   };
+
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
@@ -104,11 +114,17 @@ const Record = () => {
     }
   };
 
+
+  // ✅ FIXED: formatTime with edge case handling
   const formatTime = (seconds: number) => {
+    if (!isFinite(seconds) || seconds < 0) {
+      return '0:00';
+    }
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -130,6 +146,7 @@ const Record = () => {
     }
   };
 
+
   const transcribeAudio = async () => {
     if (!audioBlob) {
       toast({
@@ -140,9 +157,11 @@ const Record = () => {
       return;
     }
 
+
     setIsTranscribing(true);
     const formData = new FormData();
     formData.append('audio', audioBlob, selectedFile?.name || 'recording.webm');
+
 
     try {
       const token = localStorage.getItem('auth_token');
@@ -157,12 +176,16 @@ const Record = () => {
         } : {}
       });
 
+
       if (!response.ok) {
         throw new Error('Transcription failed');
       }
 
+
       const data = await response.json();
       setTranscript(data.transcript);
+      setHasTranscribed(true); // ✅ NEW: Mark as transcribed
+
 
       // ✅ Store audio URL for playback
       if (data.audio_url) {
@@ -187,6 +210,7 @@ const Record = () => {
     }
   };
 
+
   const generateNotes = async () => {
     if (!transcript) {
       toast({
@@ -196,6 +220,7 @@ const Record = () => {
       });
       return;
     }
+
 
     setIsGenerating(true);
     try {
@@ -211,9 +236,11 @@ const Record = () => {
         credentials: 'include'
       });
 
+
       if (!response.ok) {
         throw new Error('Generation failed');
       }
+
 
       const data = await response.json();
       setNotes(data.notes);
@@ -234,6 +261,7 @@ const Record = () => {
     }
   };
 
+
   const pushToGoogleDocs = async () => {
     if (!notes) {
       toast({
@@ -243,6 +271,7 @@ const Record = () => {
       });
       return;
     }
+
 
     setIsPushing(true);
     try {
@@ -259,16 +288,20 @@ const Record = () => {
         credentials: 'include'
       });
 
+
       if (!saveResponse.ok) {
         throw new Error('Failed to save note');
       }
 
+
       const saveData = await saveResponse.json();
       const noteId = saveData.note_id;
+
 
       if (!noteId) {
         throw new Error('No note ID received');
       }
+
 
       // ✅ Now export to Google Docs using the note_id
       const exportResponse = await fetch(`${API_URL}/notes/${noteId}/export-google-docs`, {
@@ -279,6 +312,7 @@ const Record = () => {
         },
         credentials: 'include'
       });
+
 
       const exportData = await exportResponse.json();
       
@@ -293,6 +327,7 @@ const Record = () => {
         }
         return;
       }
+
 
       if (exportData.success && exportData.google_doc_url) {
         toast({
@@ -316,6 +351,7 @@ const Record = () => {
   };
 
 
+
   const downloadTranscript = () => {
     if (!transcript) return;
    
@@ -329,6 +365,7 @@ const Record = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
 
   const downloadNotes = () => {
     if (!notes) return;
@@ -344,6 +381,7 @@ const Record = () => {
     URL.revokeObjectURL(url);
   };
 
+
   // ✅ Audio player controls
   const togglePlayPause = () => {
     if (!audioRef.current) return;
@@ -355,12 +393,14 @@ const Record = () => {
     }
   };
 
+
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!audioRef.current) return;
     const time = parseFloat(e.target.value);
     audioRef.current.currentTime = time;
     setCurrentTime(time);
   };
+
 
   return (
     <div className="flex h-screen bg-background">
@@ -417,9 +457,11 @@ const Record = () => {
                     </div>
                   </div>
 
+
                   <div className="flex items-center justify-center">
                     <span className="text-muted-foreground font-medium">OR</span>
                   </div>
+
 
                   <div className="flex-1">
                     <div
@@ -450,6 +492,7 @@ const Record = () => {
                   </div>
                 </div>
 
+
                 {audioBlob && (
                   <div className="flex justify-center pt-4 border-t">
                     <Button
@@ -474,14 +517,15 @@ const Record = () => {
                 )}
               </CardContent>
             </Card>
-            {/* Transcript Card with Audio Player */}
-            {transcript && (
+
+            {/* ✅ FIXED: Transcript Card with Audio Player */}
+            {hasTranscribed && (
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>Transcript</CardTitle>
-                      <CardDescription>Your audio converted to text</CardDescription>
+                      <CardDescription>Your audio converted to text - Edit as needed</CardDescription>
                     </div>
                     <Button onClick={downloadTranscript} variant="outline" size="sm" className="gap-2">
                       <Download className="w-4 h-4" />
@@ -490,13 +534,13 @@ const Record = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* ✅ Audio Player */}
+                  {/* ✅ FIXED: Audio Player */}
                   {audioUrl && (
                     <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">🎵 Audio Playback</span>
                         <span className="text-xs text-muted-foreground">
-                          {formatTime(Math.floor(currentTime))} / {formatTime(Math.floor(duration))}
+                          {isFinite(currentTime) ? formatTime(Math.floor(currentTime)) : '0:00'} / {isFinite(duration) && duration > 0 ? formatTime(Math.floor(duration)) : '0:00'}
                         </span>
                       </div>
                       
@@ -507,6 +551,7 @@ const Record = () => {
                           size="sm"
                           variant="outline"
                           className="h-10 w-10 rounded-full p-0"
+                          disabled={!isFinite(duration) || duration === 0}
                         >
                           {isPlaying ? (
                             <Pause className="h-4 w-4" />
@@ -518,31 +563,59 @@ const Record = () => {
                         <input
                           type="range"
                           min="0"
-                          max={duration || 0}
-                          value={currentTime}
+                          max={isFinite(duration) && duration > 0 ? duration : 100}
+                          value={isFinite(currentTime) ? currentTime : 0}
                           onChange={handleSeek}
+                          disabled={!isFinite(duration) || duration === 0}
                           className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer slider"
                           style={{
-                            background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) 100%)`
+                            background: isFinite(duration) && duration > 0
+                              ? `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) 100%)`
+                              : 'hsl(var(--muted))'
                           }}
                         />
                       </div>
 
-                      {/* Hidden HTML5 Audio Element */}
+
+                      {/* Hidden HTML5 Audio Element - FIXED */}
                       <audio
                         ref={audioRef}
                         src={audioUrl}
-                        onTimeUpdate={(e) => {
-                          const audio = e.currentTarget;
-                          setCurrentTime(audio.currentTime);
-                        }}
+                        preload="metadata"
                         onLoadedMetadata={(e) => {
                           const audio = e.currentTarget;
-                          setDuration(audio.duration);
+                          console.log('🎵 Audio loaded:', {
+                            duration: audio.duration,
+                            src: audio.src
+                          });
+                          if (isFinite(audio.duration)) {
+                            setDuration(audio.duration);
+                          }
+                        }}
+                        onTimeUpdate={(e) => {
+                          const audio = e.currentTarget;
+                          if (isFinite(audio.currentTime)) {
+                            setCurrentTime(audio.currentTime);
+                          }
+                        }}
+                        onDurationChange={(e) => {
+                          const audio = e.currentTarget;
+                          console.log('🎵 Duration changed:', audio.duration);
+                          if (isFinite(audio.duration)) {
+                            setDuration(audio.duration);
+                          }
                         }}
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}
                         onEnded={() => setIsPlaying(false)}
+                        onError={(e) => {
+                          console.error('🎵 Audio error:', e);
+                          toast({
+                            title: "Audio Error",
+                            description: "Failed to load audio file",
+                            variant: "destructive"
+                          });
+                        }}
                         className="hidden"
                       />
                     </div>
@@ -560,11 +633,12 @@ const Record = () => {
                       💡 Tip: You can edit the transcript before generating notes
                     </p>
                   </div>
-                  
+
+
                   <div className="flex justify-center">
                     <Button
                       onClick={generateNotes}
-                      disabled={isGenerating}
+                      disabled={isGenerating || !transcript}
                       size="lg"
                       className="gap-2"
                     >
@@ -584,6 +658,7 @@ const Record = () => {
                 </CardContent>
               </Card>
             )}
+
 
             {/* Notes Card */}
             {notes && (
@@ -633,5 +708,6 @@ const Record = () => {
     </div>
   );
 };
+
 
 export default Record;
