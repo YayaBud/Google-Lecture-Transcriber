@@ -7,9 +7,7 @@ import { useState, useRef, useEffect } from "react";
 import { useToast } from "../hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
 
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
 
 const Record = () => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -23,26 +21,45 @@ const Record = () => {
   const [transcript, setTranscript] = useState("");
   const [notes, setNotes] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [hasTranscribed, setHasTranscribed] = useState(false); // ✅ NEW: Track if transcription happened
+  const [hasTranscribed, setHasTranscribed] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  
+  // ✅ NEW: Touch tracking and debounce state
+  const [isSeeking, setIsSeeking] = useState(false);
+  const seekDebounceRef = useRef<NodeJS.Timeout | null>(null);
  
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+      // ✅ NEW: Clean up seek debounce timer
+      if (seekDebounceRef.current) {
+        clearTimeout(seekDebounceRef.current);
+      }
     };
   }, []);
 
+  // ✅ NEW: Pause time updates during seeking to prevent conflicts
+  useEffect(() => {
+    if (audioRef.current && isSeeking) {
+      const wasPlaying = !audioRef.current.paused;
+      
+      return () => {
+        if (wasPlaying && audioRef.current && !audioRef.current.paused) {
+          audioRef.current.play().catch(console.error);
+        }
+      };
+    }
+  }, [isSeeking]);
 
   const startRecording = async () => {
     try {
@@ -62,20 +79,17 @@ const Record = () => {
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
-
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           chunksRef.current.push(e.data);
         }
       };
 
-
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
       };
-
 
       mediaRecorder.start(1000);
       setIsRecording(true);
@@ -84,7 +98,6 @@ const Record = () => {
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
-
 
       toast({
         title: "Recording started",
@@ -98,7 +111,6 @@ const Record = () => {
       });
     }
   };
-
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
@@ -114,8 +126,6 @@ const Record = () => {
     }
   };
 
-
-  // ✅ FIXED: formatTime with edge case handling
   const formatTime = (seconds: number) => {
     if (!isFinite(seconds) || seconds < 0) {
       return '0:00';
@@ -124,7 +134,6 @@ const Record = () => {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -146,7 +155,6 @@ const Record = () => {
     }
   };
 
-
   const transcribeAudio = async () => {
     if (!audioBlob) {
       toast({
@@ -157,11 +165,9 @@ const Record = () => {
       return;
     }
 
-
     setIsTranscribing(true);
     const formData = new FormData();
     formData.append('audio', audioBlob, selectedFile?.name || 'recording.webm');
-
 
     try {
       const token = localStorage.getItem('auth_token');
@@ -176,18 +182,14 @@ const Record = () => {
         } : {}
       });
 
-
       if (!response.ok) {
         throw new Error('Transcription failed');
       }
 
-
       const data = await response.json();
       setTranscript(data.transcript);
-      setHasTranscribed(true); // ✅ NEW: Mark as transcribed
+      setHasTranscribed(true);
 
-
-      // ✅ Store audio URL for playback
       if (data.audio_url) {
         const fullAudioUrl = `${API_URL}${data.audio_url}`;
         setAudioUrl(fullAudioUrl);
@@ -210,7 +212,6 @@ const Record = () => {
     }
   };
 
-
   const generateNotes = async () => {
     if (!transcript) {
       toast({
@@ -220,7 +221,6 @@ const Record = () => {
       });
       return;
     }
-
 
     setIsGenerating(true);
     try {
@@ -236,11 +236,9 @@ const Record = () => {
         credentials: 'include'
       });
 
-
       if (!response.ok) {
         throw new Error('Generation failed');
       }
-
 
       const data = await response.json();
       setNotes(data.notes);
@@ -261,7 +259,6 @@ const Record = () => {
     }
   };
 
-
   const pushToGoogleDocs = async () => {
     if (!notes) {
       toast({
@@ -272,12 +269,10 @@ const Record = () => {
       return;
     }
 
-
     setIsPushing(true);
     try {
       const token = localStorage.getItem('auth_token');
       
-      // ✅ First, save the note to get a note_id
       const saveResponse = await fetch(`${API_URL}/generate-notes`, {
         method: 'POST',
         headers: {
@@ -288,22 +283,17 @@ const Record = () => {
         credentials: 'include'
       });
 
-
       if (!saveResponse.ok) {
         throw new Error('Failed to save note');
       }
 
-
       const saveData = await saveResponse.json();
       const noteId = saveData.note_id;
-
 
       if (!noteId) {
         throw new Error('No note ID received');
       }
 
-
-      // ✅ Now export to Google Docs using the note_id
       const exportResponse = await fetch(`${API_URL}/notes/${noteId}/export-google-docs`, {
         method: 'POST',
         headers: {
@@ -313,10 +303,8 @@ const Record = () => {
         credentials: 'include'
       });
 
-
       const exportData = await exportResponse.json();
       
-      // Check if user needs to reconnect Google
       if (exportData.needs_auth) {
         const shouldReconnect = window.confirm(
           'Your Google account needs to be connected to sync notes to Google Docs.\n\nWould you like to connect now?'
@@ -327,7 +315,6 @@ const Record = () => {
         }
         return;
       }
-
 
       if (exportData.success && exportData.google_doc_url) {
         toast({
@@ -350,8 +337,6 @@ const Record = () => {
     }
   };
 
-
-
   const downloadTranscript = () => {
     if (!transcript) return;
    
@@ -365,7 +350,6 @@ const Record = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-
 
   const downloadNotes = () => {
     if (!notes) return;
@@ -381,26 +365,93 @@ const Record = () => {
     URL.revokeObjectURL(url);
   };
 
-
-  // ✅ Audio player controls
   const togglePlayPause = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !duration) return;
     
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch((error) => {
+        console.error('🎵 Play error:', error);
+        toast({
+          title: "Playback Error",
+          description: "Could not play audio",
+          variant: "destructive"
+        });
+      });
     }
   };
 
-
+  // ✅ ENHANCED: Debounced seek handler for smoother performance
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !duration) return;
     const time = parseFloat(e.target.value);
-    audioRef.current.currentTime = time;
-    setCurrentTime(time);
+    
+    // Clamp the time to valid range
+    const clampedTime = Math.max(0, Math.min(time, duration));
+    
+    // Update UI immediately for smooth visual feedback
+    setCurrentTime(clampedTime);
+    
+    // Debounce the actual audio seek to reduce stuttering
+    if (seekDebounceRef.current) {
+      clearTimeout(seekDebounceRef.current);
+    }
+    
+    seekDebounceRef.current = setTimeout(() => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = clampedTime;
+      }
+    }, 50); // 50ms debounce
   };
 
+  // ✅ NEW: Touch event handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !duration) return;
+    setIsSeeking(true);
+    
+    // Pause audio during seeking for better UX
+    if (isPlaying) {
+      audioRef.current.pause();
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !duration || !isSeeking) return;
+    
+    const touch = e.touches[0];
+    const progressBar = e.currentTarget;
+    const rect = progressBar.getBoundingClientRect();
+    
+    // Calculate position relative to progress bar
+    const x = touch.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(x / rect.width, 1));
+    const newTime = percentage * duration;
+    
+    setCurrentTime(newTime);
+    audioRef.current.currentTime = newTime;
+  };
+
+  const handleTouchEnd = () => {
+    setIsSeeking(false);
+    
+    // Resume playback if it was playing before
+    if (isPlaying && audioRef.current) {
+      audioRef.current.play().catch((error) => {
+        console.error('🎵 Play error:', error);
+      });
+    }
+  };
+
+  // ✅ NEW: Mouse handlers for desktop (similar to touch)
+  const handleMouseDown = () => {
+    if (!audioRef.current || !duration) return;
+    setIsSeeking(true);
+  };
+
+  const handleMouseUp = () => {
+    setIsSeeking(false);
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -457,11 +508,9 @@ const Record = () => {
                     </div>
                   </div>
 
-
                   <div className="flex items-center justify-center">
                     <span className="text-muted-foreground font-medium">OR</span>
                   </div>
-
 
                   <div className="flex-1">
                     <div
@@ -492,7 +541,6 @@ const Record = () => {
                   </div>
                 </div>
 
-
                 {audioBlob && (
                   <div className="flex justify-center pt-4 border-t">
                     <Button
@@ -518,7 +566,7 @@ const Record = () => {
               </CardContent>
             </Card>
 
-            {/* ✅ FIXED: Transcript Card with Audio Player */}
+            {/* ✅ ENHANCED: Transcript Card with Touch-Enabled Audio Player */}
             {hasTranscribed && (
               <Card>
                 <CardHeader>
@@ -534,13 +582,13 @@ const Record = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* ✅ FIXED: Audio Player */}
+                  {/* ✅ ENHANCED: Smooth Audio Player with Touch Support */}
                   {audioUrl && (
                     <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">🎵 Audio Playback</span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(Math.floor(currentTime))} / {formatTime(Math.floor(duration))}
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {formatTime(currentTime)} / {formatTime(duration)}
                         </span>
                       </div>
                       
@@ -550,7 +598,8 @@ const Record = () => {
                           onClick={togglePlayPause}
                           size="sm"
                           variant="outline"
-                          className="h-10 w-10 rounded-full p-0 flex-shrink-0"
+                          className="h-10 w-10 rounded-full p-0 flex-shrink-0 hover:scale-105 transition-transform"
+                          disabled={!duration}
                         >
                           {isPlaying ? (
                             <Pause className="h-4 w-4" />
@@ -559,28 +608,48 @@ const Record = () => {
                           )}
                         </Button>
                         
-                        {/* ✅ Custom styled range input */}
-                        <div className="flex-1 relative h-2">
+                        {/* ✅ Enhanced Progress Bar with Touch Support */}
+                        <div 
+                          className="flex-1 relative h-2 group touch-none"
+                          onTouchStart={handleTouchStart}
+                          onTouchMove={handleTouchMove}
+                          onTouchEnd={handleTouchEnd}
+                          onMouseDown={handleMouseDown}
+                          onMouseUp={handleMouseUp}
+                        >
+                          {/* Background Track */}
+                          <div className="absolute inset-0 rounded-full bg-muted" />
+                          
+                          {/* Progress Fill */}
+                          <div 
+                            className="absolute left-0 top-0 bottom-0 rounded-full bg-primary pointer-events-none"
+                            style={{
+                              width: duration > 0 ? `${Math.min((currentTime / duration) * 100, 100)}%` : '0%',
+                              transition: isSeeking ? 'none' : 'width 100ms ease-linear'
+                            }}
+                          />
+                          
+                          {/* Thumb/Handle */}
+                          <div 
+                            className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full shadow-md pointer-events-none transition-opacity duration-200 ${
+                              isSeeking ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                            }`}
+                            style={{
+                              left: duration > 0 ? `calc(${Math.min((currentTime / duration) * 100, 100)}% - 6px)` : '0%',
+                              transition: isSeeking ? 'left 50ms ease-out' : 'left 100ms ease-linear, opacity 200ms'
+                            }}
+                          />
+                          
+                          {/* Invisible Range Input */}
                           <input
                             type="range"
                             min="0"
                             max={duration || 100}
                             value={currentTime || 0}
                             onChange={handleSeek}
-                            step="0.1"
-                            className="absolute inset-0 w-full h-2 bg-transparent appearance-none cursor-pointer z-10"
-                            style={{
-                              background: 'transparent'
-                            }}
-                          />
-                          {/* Progress track background */}
-                          <div className="absolute inset-0 rounded-full bg-muted pointer-events-none" />
-                          {/* Progress fill */}
-                          <div 
-                            className="absolute left-0 top-0 bottom-0 rounded-full bg-primary pointer-events-none transition-all duration-100 ease-linear"
-                            style={{
-                              width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%'
-                            }}
+                            step="0.01"
+                            disabled={!duration}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
                           />
                         </div>
                       </div>
@@ -590,27 +659,28 @@ const Record = () => {
                         ref={audioRef}
                         src={audioUrl}
                         preload="metadata"
-                        onCanPlay={(e) => {
-                          const audio = e.currentTarget;
-                          if (audio.duration && isFinite(audio.duration)) {
-                            setDuration(audio.duration);
-                          }
-                        }}
                         onLoadedMetadata={(e) => {
                           const audio = e.currentTarget;
                           if (audio.duration && isFinite(audio.duration)) {
                             setDuration(audio.duration);
+                            console.log('🎵 Audio loaded, duration:', audio.duration);
                           }
                         }}
                         onTimeUpdate={(e) => {
-                          const audio = e.currentTarget;
-                          if (audio.currentTime && isFinite(audio.currentTime)) {
-                            setCurrentTime(audio.currentTime);
+                          // Only update time if not actively seeking
+                          if (!isSeeking) {
+                            const audio = e.currentTarget;
+                            if (isFinite(audio.currentTime)) {
+                              setCurrentTime(audio.currentTime);
+                            }
                           }
                         }}
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}
-                        onEnded={() => setIsPlaying(false)}
+                        onEnded={() => {
+                          setIsPlaying(false);
+                          setCurrentTime(0);
+                        }}
                         onError={(e) => {
                           console.error('🎵 Audio error:', e);
                           toast({
@@ -623,8 +693,6 @@ const Record = () => {
                       />
                     </div>
                   )}
-
-
           
                   {/* ✅ Editable Transcript Text */}
                   <div className="space-y-2">
@@ -638,7 +706,6 @@ const Record = () => {
                       💡 Tip: You can edit the transcript before generating notes
                     </p>
                   </div>
-
 
                   <div className="flex justify-center">
                     <Button
@@ -663,7 +730,6 @@ const Record = () => {
                 </CardContent>
               </Card>
             )}
-
 
             {/* Notes Card */}
             {notes && (
@@ -713,6 +779,5 @@ const Record = () => {
     </div>
   );
 };
-
 
 export default Record;
