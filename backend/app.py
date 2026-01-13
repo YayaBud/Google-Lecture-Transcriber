@@ -1184,7 +1184,82 @@ def toggle_favorite(note_id):
         return jsonify({'success': True, 'is_favorite': new_status})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/notes/<note_id>/chat', methods=['POST'])
+@login_required
+def chat_with_note(note_id):
+    """Chat with AI about a specific note"""
+    try:
+        user_id = getattr(request, 'user_id', session.get('user_id'))
+        
+        # Get the note
+        note = notes_collection.find_one({
+            '_id': ObjectId(note_id),
+            'user_id': user_id
+        })
+        
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+        
+        # Get user's question
+        data = request.json
+        question = data.get('question', '')
+        chat_history = data.get('history', [])  # Optional: for context
+        
+        if not question:
+            return jsonify({'error': 'Question is required'}), 400
+        
+        # Get note content
+        note_content = note.get('content', note.get('transcript', ''))
+        note_title = note.get('title', 'Untitled Note')
+        
+        # Build context-aware prompt
+        prompt = f"""You are an AI tutor helping a student understand their lecture notes.
 
+**Note Title:** {note_title}
+
+**Note Content:**
+{note_content}
+
+**Student's Question:** {question}
+
+**Instructions:**
+1. Answer based ONLY on the content of these notes
+2. Be clear, concise, and educational
+3. If the question isn't covered in the notes, politely say so
+4. Use examples from the notes when possible
+5. Keep responses under 200 words unless explaining complex topics
+
+**Your Answer:**"""
+        
+        # Add chat history for context (if provided)
+        if chat_history:
+            history_text = "\n".join([
+                f"Student: {msg['question']}\nAI: {msg['answer']}" 
+                for msg in chat_history[-3:]  # Last 3 exchanges
+            ])
+            prompt = f"""Previous conversation:
+{history_text}
+
+{prompt}"""
+        
+        # Get AI response
+        print(f"💬 Chat request for note {note_id}: {question[:50]}...")
+        response = generate_with_gemini(prompt, timeout=30)
+        
+        print(f"✅ Chat response generated ({len(response)} chars)")
+        
+        return jsonify({
+            'success': True,
+            'answer': response,
+            'note_title': note_title
+        })
+        
+    except Exception as e:
+        print(f"❌ Chat error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/notes/<note_id>/export-pdf', methods=['GET'])
 @login_required
