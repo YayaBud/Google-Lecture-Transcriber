@@ -1139,8 +1139,7 @@ def get_notes():
     except Exception as e:
         print(f"Error fetching notes: {e}")
         return jsonify({'error': str(e)}), 500
-
-
+    
 @app.route('/notes', methods=['POST'])
 @login_required
 def create_note_metadata():
@@ -1169,6 +1168,35 @@ def create_note_metadata():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/notes/<note_id>', methods=['GET'])
+@login_required
+def get_note(note_id):
+    """Get a single note by ID"""
+    try:
+        user_id = getattr(request, 'user_id', session.get('user_id'))
+        note = notes_collection.find_one({
+            '_id': ObjectId(note_id),
+            'user_id': user_id
+        })
+        
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'id': str(note['_id']),
+            'title': note.get('title', 'Untitled Note'),
+            'content': note.get('content', note.get('transcript', '')),  # Return full content
+            'preview': note.get('preview', ''),
+            'created_at': note.get('created_at'),
+            'updated_at': note.get('updated_at'),
+            'google_doc_url': note.get('google_doc_url'),
+            'google_doc_id': note.get('google_doc_id'),
+            'is_favorite': note.get('is_favorite', False)
+        })
+    except Exception as e:
+        print(f"Error fetching note: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/notes/<note_id>', methods=['PUT'])
 @login_required
