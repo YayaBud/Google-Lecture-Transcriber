@@ -540,7 +540,7 @@ const Record = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">🎵 Audio Playback</span>
                         <span className="text-xs text-muted-foreground">
-                          {isFinite(currentTime) ? formatTime(Math.floor(currentTime)) : '0:00'} / {isFinite(duration) && duration > 0 ? formatTime(Math.floor(duration)) : '0:00'}
+                          {formatTime(Math.floor(currentTime))} / {formatTime(Math.floor(duration))}
                         </span>
                       </div>
                       
@@ -551,7 +551,6 @@ const Record = () => {
                           size="sm"
                           variant="outline"
                           className="h-10 w-10 rounded-full p-0"
-                          disabled={!isFinite(duration) || duration === 0}
                         >
                           {isPlaying ? (
                             <Pause className="h-4 w-4" />
@@ -563,46 +562,49 @@ const Record = () => {
                         <input
                           type="range"
                           min="0"
-                          max={isFinite(duration) && duration > 0 ? duration : 100}
-                          value={isFinite(currentTime) ? currentTime : 0}
+                          max={duration || 100}
+                          value={currentTime || 0}
                           onChange={handleSeek}
-                          disabled={!isFinite(duration) || duration === 0}
                           className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer slider"
                           style={{
-                            background: isFinite(duration) && duration > 0
+                            background: duration > 0
                               ? `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) 100%)`
                               : 'hsl(var(--muted))'
                           }}
                         />
                       </div>
 
-
                       {/* Hidden HTML5 Audio Element - FIXED */}
                       <audio
                         ref={audioRef}
                         src={audioUrl}
                         preload="metadata"
-                        onLoadedMetadata={(e) => {
+                        crossOrigin="anonymous"
+                        onCanPlay={(e) => {
                           const audio = e.currentTarget;
-                          console.log('🎵 Audio loaded:', {
-                            duration: audio.duration,
-                            src: audio.src
-                          });
-                          if (isFinite(audio.duration)) {
+                          console.log('🎵 Audio can play:', audio.duration);
+                          if (audio.duration && isFinite(audio.duration)) {
                             setDuration(audio.duration);
                           }
                         }}
-                        onTimeUpdate={(e) => {
+                        onLoadedMetadata={(e) => {
                           const audio = e.currentTarget;
-                          if (isFinite(audio.currentTime)) {
-                            setCurrentTime(audio.currentTime);
+                          console.log('🎵 Metadata loaded:', audio.duration);
+                          if (audio.duration && isFinite(audio.duration)) {
+                            setDuration(audio.duration);
                           }
                         }}
                         onDurationChange={(e) => {
                           const audio = e.currentTarget;
                           console.log('🎵 Duration changed:', audio.duration);
-                          if (isFinite(audio.duration)) {
+                          if (audio.duration && isFinite(audio.duration)) {
                             setDuration(audio.duration);
+                          }
+                        }}
+                        onTimeUpdate={(e) => {
+                          const audio = e.currentTarget;
+                          if (audio.currentTime && isFinite(audio.currentTime)) {
+                            setCurrentTime(audio.currentTime);
                           }
                         }}
                         onPlay={() => setIsPlaying(true)}
@@ -612,7 +614,7 @@ const Record = () => {
                           console.error('🎵 Audio error:', e);
                           toast({
                             title: "Audio Error",
-                            description: "Failed to load audio file",
+                            description: "Failed to load audio file. Check console for details.",
                             variant: "destructive"
                           });
                         }}
@@ -620,6 +622,7 @@ const Record = () => {
                       />
                     </div>
                   )}
+
           
                   {/* ✅ Editable Transcript Text */}
                   <div className="space-y-2">
