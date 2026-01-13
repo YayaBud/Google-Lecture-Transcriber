@@ -248,39 +248,60 @@ const Record = () => {
     try {
       const token = localStorage.getItem('auth_token');
       
-      const response = await fetch(`${API_URL}/push-to-docs`, {
+      // ✅ First, save the note to get a note_id
+      const saveResponse = await fetch(`${API_URL}/generate-notes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({
-          notes,
-          title: `Lecture Notes ${new Date().toLocaleDateString()}`
-        }),
+        body: JSON.stringify({ transcript }),
         credentials: 'include'
       });
 
-      const data = await response.json();
-     
-      if (data.needs_auth) {
-        const authResponse = await fetch(`${API_URL}/auth/google`, {
-          credentials: 'include',
-          headers: token ? {
-            'Authorization': `Bearer ${token}`
-          } : {}
-        });
-        const authData = await authResponse.json();
-        window.location.href = authData.auth_url;
+      if (!saveResponse.ok) {
+        throw new Error('Failed to save note');
+      }
+
+      const saveData = await saveResponse.json();
+      const noteId = saveData.note_id;
+
+      if (!noteId) {
+        throw new Error('No note ID received');
+      }
+
+      // ✅ Now export to Google Docs using the note_id
+      const exportResponse = await fetch(`${API_URL}/notes/${noteId}/export-google-docs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        credentials: 'include'
+      });
+
+      const exportData = await exportResponse.json();
+      
+      // Check if user needs to reconnect Google
+      if (exportData.needs_auth) {
+        const shouldReconnect = window.confirm(
+          'Your Google account needs to be connected to sync notes to Google Docs.\n\nWould you like to connect now?'
+        );
+        
+        if (shouldReconnect) {
+          window.location.href = `${API_URL}/auth/google`;
+        }
         return;
       }
 
-      if (data.success) {
+      if (exportData.success && exportData.google_doc_url) {
         toast({
           title: "Pushed to Google Docs",
           description: "Your notes are now in Google Docs",
         });
-        window.open(data.doc_url, '_blank');
+        window.open(exportData.google_doc_url, '_blank');
+      } else {
+        throw new Error('Failed to export to Google Docs');
       }
     } catch (error) {
       console.error('Push to docs error:', error);
@@ -293,6 +314,7 @@ const Record = () => {
       setIsPushing(false);
     }
   };
+
 
   const downloadTranscript = () => {
     if (!transcript) return;
@@ -452,7 +474,6 @@ const Record = () => {
                 )}
               </CardContent>
             </Card>
-
             {/* Transcript Card with Audio Player */}
             {transcript && (
               <Card>
