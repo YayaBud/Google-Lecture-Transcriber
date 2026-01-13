@@ -121,7 +121,7 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 # ===========================
 # 7️⃣ GEMINI SETUP
 # ===========================
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")  # ✅ Using 1.5-flash for stability
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash")  # ✅ Using 1.5-flash for stability
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 print(f"🔑 Using Gemini API Key: {os.getenv('GEMINI_API_KEY')[:20] if os.getenv('GEMINI_API_KEY') else 'NOT SET'}...")
 
