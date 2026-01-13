@@ -550,7 +550,7 @@ const Record = () => {
                           onClick={togglePlayPause}
                           size="sm"
                           variant="outline"
-                          className="h-10 w-10 rounded-full p-0"
+                          className="h-10 w-10 rounded-full p-0 flex-shrink-0"
                         >
                           {isPlaying ? (
                             <Pause className="h-4 w-4" />
@@ -559,44 +559,45 @@ const Record = () => {
                           )}
                         </Button>
                         
-                        <input
-                          type="range"
-                          min="0"
-                          max={duration || 100}
-                          value={currentTime || 0}
-                          onChange={handleSeek}
-                          className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer slider"
-                          style={{
-                            background: duration > 0
-                              ? `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) 100%)`
-                              : 'hsl(var(--muted))'
-                          }}
-                        />
+                        {/* ✅ Custom styled range input */}
+                        <div className="flex-1 relative h-2">
+                          <input
+                            type="range"
+                            min="0"
+                            max={duration || 100}
+                            value={currentTime || 0}
+                            onChange={handleSeek}
+                            step="0.1"
+                            className="absolute inset-0 w-full h-2 bg-transparent appearance-none cursor-pointer z-10"
+                            style={{
+                              background: 'transparent'
+                            }}
+                          />
+                          {/* Progress track background */}
+                          <div className="absolute inset-0 rounded-full bg-muted pointer-events-none" />
+                          {/* Progress fill */}
+                          <div 
+                            className="absolute left-0 top-0 bottom-0 rounded-full bg-primary pointer-events-none transition-all duration-100 ease-linear"
+                            style={{
+                              width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%'
+                            }}
+                          />
+                        </div>
                       </div>
 
-                      {/* Hidden HTML5 Audio Element - FIXED */}
+                      {/* Hidden HTML5 Audio Element */}
                       <audio
                         ref={audioRef}
                         src={audioUrl}
                         preload="metadata"
-                        crossOrigin="anonymous"
                         onCanPlay={(e) => {
                           const audio = e.currentTarget;
-                          console.log('🎵 Audio can play:', audio.duration);
                           if (audio.duration && isFinite(audio.duration)) {
                             setDuration(audio.duration);
                           }
                         }}
                         onLoadedMetadata={(e) => {
                           const audio = e.currentTarget;
-                          console.log('🎵 Metadata loaded:', audio.duration);
-                          if (audio.duration && isFinite(audio.duration)) {
-                            setDuration(audio.duration);
-                          }
-                        }}
-                        onDurationChange={(e) => {
-                          const audio = e.currentTarget;
-                          console.log('🎵 Duration changed:', audio.duration);
                           if (audio.duration && isFinite(audio.duration)) {
                             setDuration(audio.duration);
                           }
@@ -614,7 +615,7 @@ const Record = () => {
                           console.error('🎵 Audio error:', e);
                           toast({
                             title: "Audio Error",
-                            description: "Failed to load audio file. Check console for details.",
+                            description: "Failed to load audio file",
                             variant: "destructive"
                           });
                         }}
@@ -622,6 +623,7 @@ const Record = () => {
                       />
                     </div>
                   )}
+
 
           
                   {/* ✅ Editable Transcript Text */}
