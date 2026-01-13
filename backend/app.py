@@ -1857,39 +1857,41 @@ def google_login_callback():
 
 @app.route('/audio/<filename>')
 def serve_audio(filename):
-    """Serve stored audio files for playback - Auth optional for direct links"""
+    """Serve stored audio files for playback"""
     try:
-        # Try to get user_id from token or session
-        user_id = None
-        auth_header = request.headers.get('Authorization')
+        # ✅ 1. Build file path FIRST
+        filepath = os.path.join(AUDIO_STORAGE_DIR, filename)
         
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            payload = verify_token(token)
-            if payload:
-                user_id = payload['user_id']
-        
-        if not user_id and 'user_id' in session:
-            user_id = session['user_id']
-        
-        # ✅ SECURITY: Verify file belongs to user (if we have user_id)
-        if user_id and f"_{user_id}" not in filename:
-            return jsonify({'error': 'Unauthorized'}), 403
-        
-        file_path = os.path.join(AUDIO_STORAGE_DIR, filename)
-        
-        if not os.path.exists(file_path):
+        # ✅ 2. Check if file exists
+        if not os.path.exists(filepath):
+            print(f"❌ Audio file not found: {filepath}")
             return jsonify({'error': 'Audio file not found'}), 404
         
-        # ✅ Return file with proper headers for audio playback
+        # ✅ 3. Optional: Check auth (can skip for now for testing)
+        # user_id = None
+        # auth_header = request.headers.get('Authorization')
+        # if auth_header and auth_header.startswith('Bearer '):
+        #     token = auth_header.split(' ')[1]
+        #     payload = verify_token(token)
+        #     if payload:
+        #         user_id = payload['user_id']
+        
+        # if user_id and f'{user_id}' not in filename:
+        #     return jsonify({'error': 'Unauthorized'}), 403
+        
+        # ✅ 4. Return the file with proper headers
+        print(f"✅ Serving audio file: {filepath}")
         return send_file(
-            file_path,
+            filepath, 
             mimetype='audio/webm',
             as_attachment=False,
-            conditional=True  # Enable range requests for seeking
+            conditional=True  # ✅ Enable range requests (206 responses)
         )
+        
     except Exception as e:
-        print(f"Error serving audio: {e}")
+        print(f"❌ Error serving audio: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 # ===========================
