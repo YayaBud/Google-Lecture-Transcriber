@@ -15,6 +15,7 @@ from urllib.parse import quote_plus
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
 import google.generativeai as genai
 from google.cloud import speech
 from faster_whisper import WhisperModel
@@ -539,100 +540,6 @@ def google_login():
     return redirect(authorization_url)
 
 
-@app.route('/auth/google/callback')
-def google_login_callback():
-    if not CLIENT_SECRET_FILE:
-        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_not_configured')
-    
-    try:
-        if 'state' not in session:
-            print("❌ State missing from session")
-            return redirect(f'{FRONTEND_REDIRECT}/login?error=state_missing')
-        
-        state = session['state']
-        flow = Flow.from_client_secrets_file(
-            CLIENT_SECRET_FILE,
-            scopes=LOGIN_SCOPES,
-            state=state,
-            redirect_uri=f'{BASE_URL}/auth/google/callback'
-        )
-        
-        flow.fetch_token(authorization_response=request.url)
-        credentials = flow.credentials
-        
-        # ✅ BUILD COMPLETE CREDENTIALS OBJECT
-        creds_data = {
-            'token': credentials.token,
-            'refresh_token': credentials.refresh_token,
-            'token_uri': credentials.token_uri,
-            'client_id': credentials.client_id,
-            'client_secret': credentials.client_secret,
-            'scopes': credentials.scopes
-        }
-        
-        # ✅ VALIDATE ALL REQUIRED FIELDS ARE PRESENT
-        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
-        missing_fields = [field for field in required_fields if not creds_data.get(field)]
-        
-        if missing_fields:
-            print(f"❌ Missing credential fields after OAuth: {missing_fields}")
-            return redirect(f'{FRONTEND_REDIRECT}/login?error=incomplete_credentials')
-        
-        print("✅ All credential fields present")
-        
-        # Get user info
-        service = build('oauth2', 'v2', credentials=credentials)
-        userinfo = service.userinfo().get().execute()
-        
-        email = userinfo.get('email')
-        first_name = userinfo.get('given_name', '')
-        last_name = userinfo.get('family_name', '')
-        
-        if not email:
-            return redirect(f'{FRONTEND_REDIRECT}/login?error=no_email')
-        
-        # Find or create user
-        user = users_collection.find_one({'email': email})
-        
-        if user:
-            # ✅ UPDATE existing user with complete credentials
-            users_collection.update_one(
-                {'_id': user['_id']},
-                {'$set': {
-                    'google_credentials': creds_data,
-                    'first_name': first_name,
-                    'last_name': last_name
-                }}
-            )
-            user_id = str(user['_id'])
-            print(f"✅ Updated existing user {email} with Google credentials")
-        else:
-            # ✅ CREATE new user with complete credentials
-            new_user = {
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'google_credentials': creds_data,
-                'created_at': time.time()
-            }
-            result = users_collection.insert_one(new_user)
-            user_id = str(result.inserted_id)
-            print(f"✅ Created new user {email} with Google credentials")
-        
-        # Create JWT token
-        token = create_access_token(user_id)
-        
-        # Set session
-        session['user_id'] = user_id
-        
-        # ✅ REDIRECT WITH TOKEN
-        return redirect(f'{FRONTEND_REDIRECT}/dashboard?token={token}')
-        
-    except Exception as e:
-        print(f"❌ OAuth callback error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_failed')
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -1555,138 +1462,336 @@ def google_auth():
 @app.route('/oauth2callback')
 def oauth2callback():
     if not CLIENT_SECRET_FILE:
-        return redirect(f"{FRONTEND_REDIRECT}/login?error=oauth_not_configured")
+        return redirect(f"{FRONTEND_REDIRECT}/dashboard?error=oauth_not_configured")
 
     if 'user_id' not in session:
         return redirect(f"{FRONTEND_REDIRECT}/login")
 
-    state = session['state']
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRET_FILE,
-        scopes=SCOPES,
-        state=state,
-        redirect_uri=f'{BASE_URL}/oauth2callback'
-    )
-    flow.fetch_token(authorization_response=request.url)
+    try:
+        state = session['state']
+        flow = Flow.from_client_secrets_file(
+            CLIENT_SECRET_FILE,
+            scopes=SCOPES,
+            state=state,
+            redirect_uri=f'{BASE_URL}/oauth2callback'
+        )
+        flow.fetch_token(authorization_response=request.url)
 
-    credentials = flow.credentials
-    creds_data = {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
-    }
+        credentials = flow.credentials
 
-    users_collection.update_one(
-        {'_id': ObjectId(session['user_id'])},
-        {'$set': {'google_credentials': creds_data}}
-    )
+        # ✅ BUILD COMPLETE CREDENTIALS
+        creds_data = {
+            'token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes
+        }
 
-    return redirect(f"{FRONTEND_REDIRECT}/dashboard/record")
+        # ✅ VALIDATE
+        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
+        missing_fields = [field for field in required_fields if not creds_data.get(field)]
+
+        if missing_fields:
+            print(f"❌ Missing fields in oauth2callback: {missing_fields}")
+            return redirect(f"{FRONTEND_REDIRECT}/dashboard?error=incomplete_credentials")
+
+        users_collection.update_one(
+            {'_id': ObjectId(session['user_id'])},
+            {'$set': {'google_credentials': creds_data}}
+        )
+
+        print(f"✅ Google Docs credentials updated for user: {session['user_id']}")
+
+        return redirect(f"{FRONTEND_REDIRECT}/dashboard?google_connected=true")
+
+    except Exception as e:
+        print(f"❌ OAuth callback error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return redirect(f"{FRONTEND_REDIRECT}/dashboard?error=oauth_failed")
 
 
-@app.route('/push-to-docs', methods=['POST'])
+
+@app.route('/auth/google/status', methods=['GET'])
 @login_required
-def push_to_docs():
+def google_auth_status():
+    """Check if user has valid Google credentials"""
     try:
         user_id = getattr(request, 'user_id', session.get('user_id'))
         user = users_collection.find_one({'_id': ObjectId(user_id)})
-        
+
         if not user or 'google_credentials' not in user:
             return jsonify({
-                'error': 'Google account not connected',
-                'needs_auth': True,
-                'auth_url': f'{BASE_URL}/auth/google'
-            }), 401
-        
+                'connected': False,
+                'needs_auth': True
+            })
+
         creds_data = user['google_credentials']
-        
-        # ✅ VALIDATE CREDENTIALS BEFORE USING
+
+        # Check if all required fields are present
         required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
-        missing_fields = [field for field in required_fields if field not in creds_data]
+        missing_fields = [field for field in required_fields if not creds_data.get(field)]
+
+        if missing_fields:
+            return jsonify({
+                'connected': False,
+                'needs_auth': True,
+                'reason': 'incomplete_credentials'
+            })
+
+        return jsonify({
+            'connected': True,
+            'needs_auth': False
+        })
+
+    except Exception as e:
+        print(f"Error checking Google auth status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/auth/google/callback')
+def google_login_callback():
+    if not CLIENT_SECRET_FILE:
+        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_not_configured')
+    
+    try:
+        if 'state' not in session:
+            print("❌ State missing from session")
+            return redirect(f'{FRONTEND_REDIRECT}/login?error=state_missing')
+        
+        state = session['state']
+        flow = Flow.from_client_secrets_file(
+            CLIENT_SECRET_FILE,
+            scopes=LOGIN_SCOPES,
+            state=state,
+            redirect_uri=f'{BASE_URL}/auth/google/callback'
+        )
+        
+        flow.fetch_token(authorization_response=request.url)
+        credentials = flow.credentials
+        
+        # ✅ BUILD COMPLETE CREDENTIALS OBJECT
+        creds_data = {
+            'token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes
+        }
+        
+        # ✅ VALIDATE ALL REQUIRED FIELDS ARE PRESENT
+        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
+        missing_fields = [field for field in required_fields if not creds_data.get(field)]
         
         if missing_fields:
-            print(f"❌ Missing credential fields: {missing_fields}")
-            return jsonify({
-                'error': 'Google credentials incomplete. Please reconnect your Google account.',
-                'needs_auth': True,
-                'missing_fields': missing_fields,
-                'auth_url': f'{BASE_URL}/auth/google'
-            }), 401
+            print(f"❌ Missing credential fields after OAuth: {missing_fields}")
+            return redirect(f'{FRONTEND_REDIRECT}/login?error=incomplete_credentials')
         
-        # Create credentials object
-        credentials = Credentials(**creds_data)
+        print("✅ All credential fields present")
         
-        # ✅ CHECK IF TOKEN IS EXPIRED AND REFRESH
-        if credentials.expired and credentials.refresh_token:
-            print("🔄 Token expired, refreshing...")
-            from google.auth.transport.requests import Request
-            credentials.refresh(Request())
-            
-            # Update refreshed credentials in database
-            updated_creds = {
-                'token': credentials.token,
-                'refresh_token': credentials.refresh_token,
-                'token_uri': credentials.token_uri,
-                'client_id': credentials.client_id,
-                'client_secret': credentials.client_secret,
-                'scopes': credentials.scopes
-            }
+        # Get user info
+        service = build('oauth2', 'v2', credentials=credentials)
+        userinfo = service.userinfo().get().execute()
+        
+        email = userinfo.get('email')
+        first_name = userinfo.get('given_name', '')
+        last_name = userinfo.get('family_name', '')
+        
+        if not email:
+            return redirect(f'{FRONTEND_REDIRECT}/login?error=no_email')
+        
+        # Find or create user
+        user = users_collection.find_one({'email': email})
+        
+        if user:
+            # ✅ UPDATE existing user with complete credentials
             users_collection.update_one(
-                {'_id': ObjectId(user_id)},
-                {'$set': {'google_credentials': updated_creds}}
-            )
-            print("✅ Token refreshed successfully")
-        
-        data = request.json
-        notes = data.get('notes', '')
-        title = data.get('title', 'Lecture Notes')
-        note_id = data.get('noteid')
-        
-        if not notes:
-            return jsonify({'error': 'No notes provided'}), 400
-        
-        # Create Google Doc
-        docs_service = build('docs', 'v1', credentials=credentials)
-        doc = docs_service.documents().create(body={'title': title}).execute()
-        doc_id = doc.get('documentId')
-        
-        # Insert content
-        requests_body = [{'insertText': {'location': {'index': 1}, 'text': notes}}]
-        docs_service.documents().batchUpdate(
-            documentId=doc_id, 
-            body={'requests': requests_body}
-        ).execute()
-        
-        doc_url = f'https://docs.google.com/document/d/{doc_id}/edit'
-        
-        # Update note with Google Doc URL
-        if note_id:
-            notes_collection.update_one(
-                {'_id': ObjectId(note_id), 'user_id': user_id},
+                {'_id': user['_id']},
                 {'$set': {
-                    'google_doc_id': doc_id,
-                    'google_doc_url': doc_url,
-                    'updated_at': time.time()
+                    'google_credentials': creds_data,
+                    'first_name': first_name,
+                    'last_name': last_name
                 }}
             )
+            user_id = str(user['_id'])
+            print(f"✅ Updated existing user {email} with Google credentials")
+        else:
+            # ✅ CREATE new user with complete credentials
+            new_user = {
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'google_credentials': creds_data,
+                'created_at': time.time()
+            }
+            result = users_collection.insert_one(new_user)
+            user_id = str(result.inserted_id)
+            print(f"✅ Created new user {email} with Google credentials")
         
-        return jsonify({
-            'success': True,
-            'docurl': doc_url,
-            'docid': doc_id,
-            'noteid': note_id
-        })
+        # Create JWT token
+        token = create_access_token(user_id)
+        
+        # Set session
+        session['user_id'] = user_id
+        
+        # ✅ REDIRECT WITH TOKEN
+        return redirect(f'{FRONTEND_REDIRECT}/dashboard?token={token}')
+        
     except Exception as e:
-        print(f"❌ ERROR pushing to docs: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ OAuth callback error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_failed')
 
 
 # ===========================
 # 🎵 AUDIO PLAYBACK ROUTE
 # ===========================
+
+
+@app.route('/notes/<note_id>/export-google-docs', methods=['POST'])
+@login_required
+def export_to_google_docs(note_id):
+    """Export a note to Google Docs"""
+    try:
+        user_id = getattr(request, 'user_id', session.get('user_id'))
+
+        # Get the note
+        note = notes_collection.find_one({
+            '_id': ObjectId(note_id),
+            'user_id': user_id
+        })
+
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+
+        # Get user's Google credentials
+        user = users_collection.find_one({'_id': ObjectId(user_id)})
+
+        if not user or 'google_credentials' not in user:
+            return jsonify({
+                'error': 'Not connected to Google',
+                'needs_auth': True
+            }), 401
+
+        creds_data = user['google_credentials']
+
+        # ✅ VALIDATE credentials have all required fields
+        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
+        missing_fields = [field for field in required_fields if not creds_data.get(field)]
+
+        if missing_fields:
+            print(f"❌ Missing credential fields: {missing_fields}")
+            return jsonify({
+                'error': 'Incomplete Google credentials. Please reconnect to Google.',
+                'needs_auth': True,
+                'missing_fields': missing_fields
+            }), 401
+
+        # Create credentials object
+        credentials = Credentials(
+            token=creds_data['token'],
+            refresh_token=creds_data['refresh_token'],
+            token_uri=creds_data['token_uri'],
+            client_id=creds_data['client_id'],
+            client_secret=creds_data['client_secret'],
+            scopes=creds_data.get('scopes', SCOPES)
+        )
+
+        # Check if token is expired and refresh if needed
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+
+            # Update stored credentials
+            users_collection.update_one(
+                {'_id': ObjectId(user_id)},
+                {'$set': {
+                    'google_credentials.token': credentials.token
+                }}
+            )
+
+        # Build Google Docs service
+        docs_service = build('docs', 'v1', credentials=credentials)
+        drive_service = build('drive', 'v3', credentials=credentials)
+
+        # Get note content
+        title = note.get('title', 'Untitled Note')
+        content_text = note.get('content', '')
+
+        # Create a new Google Doc
+        doc = docs_service.documents().create(body={'title': title}).execute()
+        doc_id = doc.get('documentId')
+
+        print(f"✅ Created Google Doc: {doc_id}")
+
+        # Prepare content for insertion
+        requests_list = []
+
+        # Convert markdown to Google Docs format
+        lines = content_text.split('\n')
+        text_content = []
+
+        for line in lines:
+            if line.strip():
+                # Remove markdown formatting for plain text
+                clean_line = line.replace('**', '').replace('##', '').replace('###', '').strip()
+                if clean_line:
+                    text_content.append(clean_line)
+
+        # Insert text into document
+        if text_content:
+            full_text = '\n\n'.join(text_content)
+            requests_list.append({
+                'insertText': {
+                    'location': {'index': 1},
+                    'text': full_text
+                }
+            })
+
+        # Apply formatting
+        if requests_list:
+            docs_service.documents().batchUpdate(
+                documentId=doc_id,
+                body={'requests': requests_list}
+            ).execute()
+
+        # Get the Google Doc URL
+        doc_url = f"https://docs.google.com/document/d/{doc_id}/edit"
+
+        # Update note with Google Doc info
+        notes_collection.update_one(
+            {'_id': ObjectId(note_id)},
+            {'$set': {
+                'google_doc_id': doc_id,
+                'google_doc_url': doc_url,
+                'updated_at': time.time()
+            }}
+        )
+
+        print(f"✅ Note exported to Google Docs: {doc_url}")
+
+        return jsonify({
+            'success': True,
+            'google_doc_url': doc_url,
+            'google_doc_id': doc_id
+        })
+
+    except Exception as e:
+        print(f"❌ Error exporting to Google Docs: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+        # Check if it's an authentication error
+        error_str = str(e).lower()
+        if 'credentials' in error_str or 'auth' in error_str or 'token' in error_str:
+            return jsonify({
+                'error': 'Google authentication failed. Please reconnect to Google.',
+                'needs_auth': True
+            }), 401
+
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/audio/<filename>')
 @login_required
