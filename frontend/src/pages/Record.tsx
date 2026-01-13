@@ -27,7 +27,6 @@ const Record = () => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  // ✅ NEW: Touch tracking and debounce state
   const [isSeeking, setIsSeeking] = useState(false);
   const seekDebounceRef = useRef<NodeJS.Timeout | null>(null);
  
@@ -35,31 +34,19 @@ const Record = () => {
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const wasPlayingRef = useRef<boolean>(false);
 
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
-      // ✅ NEW: Clean up seek debounce timer
       if (seekDebounceRef.current) {
         clearTimeout(seekDebounceRef.current);
       }
+      wasPlayingRef.current = false;
     };
   }, []);
-
-  // ✅ NEW: Pause time updates during seeking to prevent conflicts
-  useEffect(() => {
-    if (audioRef.current && isSeeking) {
-      const wasPlaying = !audioRef.current.paused;
-      
-      return () => {
-        if (wasPlaying && audioRef.current && !audioRef.current.paused) {
-          audioRef.current.play().catch(console.error);
-        }
-      };
-    }
-  }, [isSeeking]);
 
   const startRecording = async () => {
     try {
@@ -382,18 +369,16 @@ const Record = () => {
     }
   };
 
-  // ✅ ENHANCED: Debounced seek handler for smoother performance
+  // ✅ FIX #2: Skip onChange during mouse/touch seeking
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isSeeking) return; // ✅ CRITICAL FIX: Skip if dragging
+    
     if (!audioRef.current || !duration) return;
     const time = parseFloat(e.target.value);
     
-    // Clamp the time to valid range
     const clampedTime = Math.max(0, Math.min(time, duration));
-    
-    // Update UI immediately for smooth visual feedback
     setCurrentTime(clampedTime);
     
-    // Debounce the actual audio seek to reduce stuttering
     if (seekDebounceRef.current) {
       clearTimeout(seekDebounceRef.current);
     }
@@ -402,28 +387,28 @@ const Record = () => {
       if (audioRef.current) {
         audioRef.current.currentTime = clampedTime;
       }
-    }, 50); // 50ms debounce
+    }, 50);
   };
 
-  // ✅ NEW: Touch event handlers for mobile
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration) return;
+    e.preventDefault();
     setIsSeeking(true);
     
-    // Pause audio during seeking for better UX
-    if (isPlaying) {
+    wasPlayingRef.current = !audioRef.current.paused;
+    if (wasPlayingRef.current) {
       audioRef.current.pause();
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration || !isSeeking) return;
+    e.preventDefault();
     
     const touch = e.touches[0];
     const progressBar = e.currentTarget;
     const rect = progressBar.getBoundingClientRect();
     
-    // Calculate position relative to progress bar
     const x = touch.clientX - rect.left;
     const percentage = Math.max(0, Math.min(x / rect.width, 1));
     const newTime = percentage * duration;
@@ -432,25 +417,66 @@ const Record = () => {
     audioRef.current.currentTime = newTime;
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.preventDefault();
     setIsSeeking(false);
     
-    // Resume playback if it was playing before
-    if (isPlaying && audioRef.current) {
+    if (wasPlayingRef.current && audioRef.current) {
       audioRef.current.play().catch((error) => {
         console.error('🎵 Play error:', error);
+        toast({
+          title: "Playback Error",
+          description: "Could not resume audio",
+          variant: "destructive"
+        });
       });
     }
+    wasPlayingRef.current = false;
   };
 
-  // ✅ NEW: Mouse handlers for desktop (similar to touch)
-  const handleMouseDown = () => {
+  // ✅ FIX #1: Proper element reference in mouse handler
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration) return;
+    e.preventDefault();
     setIsSeeking(true);
-  };
+    
+    wasPlayingRef.current = !audioRef.current.paused;
+    if (wasPlayingRef.current) {
+      audioRef.current.pause();
+    }
 
-  const handleMouseUp = () => {
-    setIsSeeking(false);
+    // ✅ CRITICAL FIX: Store element reference correctly
+    const progressBar = e.currentTarget;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!audioRef.current || !duration) return;
+      
+      // ✅ Use stored reference (not stale e.currentTarget)
+      const rect = progressBar.getBoundingClientRect();
+      const x = moveEvent.clientX - rect.left;
+      const percentage = Math.max(0, Math.min(x / rect.width, 1));
+      const newTime = percentage * duration;
+      
+      setCurrentTime(newTime);
+      audioRef.current.currentTime = newTime;
+    };
+
+    const handleMouseUp = () => {
+      setIsSeeking(false);
+      
+      if (wasPlayingRef.current && audioRef.current) {
+        audioRef.current.play().catch((error) => {
+          console.error('🎵 Play error:', error);
+        });
+      }
+      wasPlayingRef.current = false;
+
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
   return (
@@ -566,7 +592,7 @@ const Record = () => {
               </CardContent>
             </Card>
 
-            {/* ✅ ENHANCED: Transcript Card with Touch-Enabled Audio Player */}
+            {/* ✅ PRODUCTION-READY: Transcript Card with Audio Player */}
             {hasTranscribed && (
               <Card>
                 <CardHeader>
@@ -582,13 +608,14 @@ const Record = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* ✅ ENHANCED: Smooth Audio Player with Touch Support */}
+                  {/* ✅ PRODUCTION-READY: Audio Player with All Critical Fixes */}
                   {audioUrl && (
                     <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">🎵 Audio Playback</span>
                         <span className="text-xs text-muted-foreground font-mono">
-                          {formatTime(currentTime)} / {formatTime(duration)}
+                          {/* ✅ BONUS FIX: Show loading state */}
+                          {duration === 0 ? 'Loading...' : `${formatTime(currentTime)} / ${formatTime(duration)}`}
                         </span>
                       </div>
                       
@@ -608,19 +635,16 @@ const Record = () => {
                           )}
                         </Button>
                         
-                        {/* ✅ Enhanced Progress Bar with Touch Support */}
+                        {/* ✅ ALL FIXES APPLIED: Progress Bar */}
                         <div 
                           className="flex-1 relative h-2 group touch-none"
                           onTouchStart={handleTouchStart}
                           onTouchMove={handleTouchMove}
                           onTouchEnd={handleTouchEnd}
                           onMouseDown={handleMouseDown}
-                          onMouseUp={handleMouseUp}
                         >
-                          {/* Background Track */}
                           <div className="absolute inset-0 rounded-full bg-muted" />
                           
-                          {/* Progress Fill */}
                           <div 
                             className="absolute left-0 top-0 bottom-0 rounded-full bg-primary pointer-events-none"
                             style={{
@@ -629,7 +653,6 @@ const Record = () => {
                             }}
                           />
                           
-                          {/* Thumb/Handle */}
                           <div 
                             className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full shadow-md pointer-events-none transition-opacity duration-200 ${
                               isSeeking ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -640,7 +663,6 @@ const Record = () => {
                             }}
                           />
                           
-                          {/* Invisible Range Input */}
                           <input
                             type="range"
                             min="0"
@@ -654,7 +676,6 @@ const Record = () => {
                         </div>
                       </div>
 
-                      {/* Hidden HTML5 Audio Element */}
                       <audio
                         ref={audioRef}
                         src={audioUrl}
@@ -667,7 +688,6 @@ const Record = () => {
                           }
                         }}
                         onTimeUpdate={(e) => {
-                          // Only update time if not actively seeking
                           if (!isSeeking) {
                             const audio = e.currentTarget;
                             if (isFinite(audio.currentTime)) {
@@ -694,7 +714,6 @@ const Record = () => {
                     </div>
                   )}
           
-                  {/* ✅ Editable Transcript Text */}
                   <div className="space-y-2">
                     <textarea
                       value={transcript}
