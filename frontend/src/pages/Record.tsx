@@ -7,7 +7,9 @@ import { useState, useRef, useEffect } from "react";
 import { useToast } from "../hooks/use-toast";
 import ReactMarkdown from 'react-markdown';
 
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 
 const Record = () => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -38,6 +40,7 @@ const Record = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const wasPlayingRef = useRef<boolean>(false);
 
+
   useEffect(() => {
     return () => {
       if (timerRef.current) {
@@ -53,14 +56,16 @@ const Record = () => {
     };
   }, []);
 
-  // ✅ ADD: Effect to monitor audio loading
+
+  // ✅ FIXED: Effect to monitor audio loading
   useEffect(() => {
     if (audioUrl && audioRef.current) {
       setAudioLoadState('loading');
       
-      // ✅ Set 5-second timeout
-      loadTimeoutRef.current = setTimeout(() => {
-        if (audioLoadState === 'loading') {
+      // ✅ Use readyState check instead of stale state
+      const timeoutId = setTimeout(() => {
+        // ✅ Check if audio element has loaded data
+        if (audioRef.current && audioRef.current.readyState < 2) {
           console.error('🎵 Audio load timeout!');
           setAudioLoadState('error');
           toast({
@@ -70,6 +75,8 @@ const Record = () => {
           });
         }
       }, 5000);
+      
+      loadTimeoutRef.current = timeoutId;
     }
     
     return () => {
@@ -78,6 +85,7 @@ const Record = () => {
       }
     };
   }, [audioUrl]);
+
 
   const startRecording = async () => {
     try {
@@ -97,17 +105,20 @@ const Record = () => {
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
+
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           chunksRef.current.push(e.data);
         }
       };
 
+
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
       };
+
 
       mediaRecorder.start(1000);
       setIsRecording(true);
@@ -116,6 +127,7 @@ const Record = () => {
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
+
 
       toast({
         title: "Recording started",
@@ -129,6 +141,7 @@ const Record = () => {
       });
     }
   };
+
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
@@ -144,6 +157,7 @@ const Record = () => {
     }
   };
 
+
   const formatTime = (seconds: number) => {
     if (!isFinite(seconds) || seconds < 0) {
       return '0:00';
@@ -152,6 +166,7 @@ const Record = () => {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -173,6 +188,7 @@ const Record = () => {
     }
   };
 
+
   const transcribeAudio = async () => {
     if (!audioBlob) {
       toast({
@@ -183,9 +199,11 @@ const Record = () => {
       return;
     }
 
+
     setIsTranscribing(true);
     const formData = new FormData();
     formData.append('audio', audioBlob, selectedFile?.name || 'recording.webm');
+
 
     try {
       const token = localStorage.getItem('auth_token');
@@ -200,13 +218,16 @@ const Record = () => {
         } : {}
       });
 
+
       if (!response.ok) {
         throw new Error('Transcription failed');
       }
 
+
       const data = await response.json();
       setTranscript(data.transcript);
       setHasTranscribed(true);
+
 
       if (data.audio_url) {
         const fullAudioUrl = `${API_URL}${data.audio_url}`;
@@ -230,6 +251,7 @@ const Record = () => {
     }
   };
 
+
   const generateNotes = async () => {
     if (!transcript) {
       toast({
@@ -239,6 +261,7 @@ const Record = () => {
       });
       return;
     }
+
 
     setIsGenerating(true);
     try {
@@ -254,9 +277,11 @@ const Record = () => {
         credentials: 'include'
       });
 
+
       if (!response.ok) {
         throw new Error('Generation failed');
       }
+
 
       const data = await response.json();
       setNotes(data.notes);
@@ -277,6 +302,7 @@ const Record = () => {
     }
   };
 
+
   const pushToGoogleDocs = async () => {
     if (!notes) {
       toast({
@@ -286,6 +312,7 @@ const Record = () => {
       });
       return;
     }
+
 
     setIsPushing(true);
     try {
@@ -301,16 +328,20 @@ const Record = () => {
         credentials: 'include'
       });
 
+
       if (!saveResponse.ok) {
         throw new Error('Failed to save note');
       }
 
+
       const saveData = await saveResponse.json();
       const noteId = saveData.note_id;
+
 
       if (!noteId) {
         throw new Error('No note ID received');
       }
+
 
       const exportResponse = await fetch(`${API_URL}/notes/${noteId}/export-google-docs`, {
         method: 'POST',
@@ -320,6 +351,7 @@ const Record = () => {
         },
         credentials: 'include'
       });
+
 
       const exportData = await exportResponse.json();
       
@@ -333,6 +365,7 @@ const Record = () => {
         }
         return;
       }
+
 
       if (exportData.success && exportData.google_doc_url) {
         toast({
@@ -355,6 +388,7 @@ const Record = () => {
     }
   };
 
+
   const downloadTranscript = () => {
     if (!transcript) return;
    
@@ -369,6 +403,7 @@ const Record = () => {
     URL.revokeObjectURL(url);
   };
 
+
   const downloadNotes = () => {
     if (!notes) return;
    
@@ -382,6 +417,7 @@ const Record = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
 
   const togglePlayPause = () => {
     if (!audioRef.current || !duration) return;
@@ -399,6 +435,7 @@ const Record = () => {
       });
     }
   };
+
 
   // ✅ FIX #2: Skip onChange during mouse/touch seeking
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -421,6 +458,7 @@ const Record = () => {
     }, 50);
   };
 
+
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration) return;
     e.preventDefault();
@@ -431,6 +469,7 @@ const Record = () => {
       audioRef.current.pause();
     }
   };
+
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration || !isSeeking) return;
@@ -447,6 +486,7 @@ const Record = () => {
     setCurrentTime(newTime);
     audioRef.current.currentTime = newTime;
   };
+
 
   const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -465,6 +505,7 @@ const Record = () => {
     wasPlayingRef.current = false;
   };
 
+
   // ✅ FIX #1: Proper element reference in mouse handler
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration) return;
@@ -476,8 +517,10 @@ const Record = () => {
       audioRef.current.pause();
     }
 
+
     // ✅ CRITICAL FIX: Store element reference correctly
     const progressBar = e.currentTarget;
+
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!audioRef.current || !duration) return;
@@ -492,6 +535,7 @@ const Record = () => {
       audioRef.current.currentTime = newTime;
     };
 
+
     const handleMouseUp = () => {
       setIsSeeking(false);
       
@@ -502,13 +546,16 @@ const Record = () => {
       }
       wasPlayingRef.current = false;
 
+
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
 
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
+
 
   return (
     <div className="flex h-screen bg-background">
@@ -565,9 +612,11 @@ const Record = () => {
                     </div>
                   </div>
 
+
                   <div className="flex items-center justify-center">
                     <span className="text-muted-foreground font-medium">OR</span>
                   </div>
+
 
                   <div className="flex-1">
                     <div
@@ -598,6 +647,7 @@ const Record = () => {
                   </div>
                 </div>
 
+
                 {audioBlob && (
                   <div className="flex justify-center pt-4 border-t">
                     <Button
@@ -622,6 +672,7 @@ const Record = () => {
                 )}
               </CardContent>
             </Card>
+
 
             {/* ✅ PRODUCTION-READY: Transcript Card with Audio Player */}
             {hasTranscribed && (
@@ -795,6 +846,7 @@ const Record = () => {
                     </p>
                   </div>
 
+
                   <div className="flex justify-center">
                     <Button
                       onClick={generateNotes}
@@ -818,6 +870,7 @@ const Record = () => {
                 </CardContent>
               </Card>
             )}
+
 
             {/* Notes Card */}
             {notes && (
@@ -867,5 +920,6 @@ const Record = () => {
     </div>
   );
 };
+
 
 export default Record;
