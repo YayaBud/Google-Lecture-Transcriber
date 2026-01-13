@@ -57,14 +57,11 @@ const Record = () => {
   }, []);
 
 
-  // ✅ FIXED: Effect to monitor audio loading
   useEffect(() => {
     if (audioUrl && audioRef.current) {
       setAudioLoadState('loading');
       
-      // ✅ Use readyState check instead of stale state
       const timeoutId = setTimeout(() => {
-        // ✅ Check if audio element has loaded data
         if (audioRef.current && audioRef.current.readyState < 2) {
           console.error('🎵 Audio load timeout!');
           setAudioLoadState('error');
@@ -764,6 +761,7 @@ const Record = () => {
                         ref={audioRef}
                         src={audioUrl}
                         preload="metadata"
+                        crossOrigin="anonymous"
                         onLoadStart={() => {
                           console.log('🎵 Audio load started');
                           setAudioLoadState('loading');
@@ -780,14 +778,38 @@ const Record = () => {
                             }
                             console.log('✅ Audio loaded successfully, duration:', audio.duration);
                           } else {
-                            console.warn('⚠️ Duration not available yet:', audio.duration);
+                            console.warn('⚠️ Duration is Infinity, will try to calculate...');
                           }
                         }}
                         onLoadedData={(e) => {
                           const audio = e.currentTarget;
                           console.log('🎵 onLoadedData fired, duration:', audio.duration);
                           
-                          if (audio.duration && isFinite(audio.duration) && duration === 0) {
+                          if (!isFinite(audio.duration) || audio.duration === 0) {
+                            console.log('🔧 Attempting to calculate WebM duration by seeking...');
+                            
+                            const originalTime = audio.currentTime;
+                            
+                            audio.currentTime = 1e101;
+                            
+                            const handleSeeked = () => {
+                              console.log('🎵 Seeked to end, new duration:', audio.duration);
+                              
+                              if (isFinite(audio.duration) && audio.duration > 0) {
+                                setDuration(audio.duration);
+                                setAudioLoadState('loaded');
+                                if (loadTimeoutRef.current) {
+                                  clearTimeout(loadTimeoutRef.current);
+                                }
+                                console.log('✅ WebM duration calculated:', audio.duration);
+                              }
+                              
+                              audio.currentTime = originalTime;
+                              audio.removeEventListener('seeked', handleSeeked);
+                            };
+                            
+                            audio.addEventListener('seeked', handleSeeked);
+                          } else if (duration === 0) {
                             setDuration(audio.duration);
                             setAudioLoadState('loaded');
                             if (loadTimeoutRef.current) {
@@ -798,9 +820,31 @@ const Record = () => {
                         }}
                         onCanPlay={() => {
                           console.log('🎵 Audio can play');
-                          setAudioLoadState('loaded');
-                          if (loadTimeoutRef.current) {
-                            clearTimeout(loadTimeoutRef.current);
+                          
+                          if (audioRef.current && !isFinite(audioRef.current.duration)) {
+                            console.log('🔧 Can play but duration still invalid, attempting final calculation...');
+                            const audio = audioRef.current;
+                            
+                            const handleSeeked = () => {
+                              if (isFinite(audio.duration) && audio.duration > 0) {
+                                setDuration(audio.duration);
+                                setAudioLoadState('loaded');
+                                if (loadTimeoutRef.current) {
+                                  clearTimeout(loadTimeoutRef.current);
+                                }
+                                console.log('✅ Duration finally calculated:', audio.duration);
+                              }
+                              audio.currentTime = 0;
+                              audio.removeEventListener('seeked', handleSeeked);
+                            };
+                            
+                            audio.addEventListener('seeked', handleSeeked);
+                            audio.currentTime = 1e101;
+                          } else {
+                            setAudioLoadState('loaded');
+                            if (loadTimeoutRef.current) {
+                              clearTimeout(loadTimeoutRef.current);
+                            }
                           }
                         }}
                         onDurationChange={(e) => {
@@ -813,6 +857,7 @@ const Record = () => {
                             if (loadTimeoutRef.current) {
                               clearTimeout(loadTimeoutRef.current);
                             }
+                            console.log('✅ Valid duration set:', audio.duration);
                           }
                         }}
                         onTimeUpdate={(e) => {
@@ -853,7 +898,6 @@ const Record = () => {
                         onSuspend={() => {
                           console.warn('🎵 Audio suspended');
                         }}
-                        crossOrigin="anonymous"
                         className="hidden"
                       />
                     </div>
