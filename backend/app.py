@@ -1577,39 +1577,76 @@ def push_to_docs():
     try:
         user_id = getattr(request, 'user_id', session.get('user_id'))
         user = users_collection.find_one({'_id': ObjectId(user_id)})
+        
         if not user or 'google_credentials' not in user:
-             return jsonify({'error': 'Google account not connected', 'needs_auth': True}), 401
-
+            return jsonify({
+                'error': 'Google account not connected',
+                'needs_auth': True,
+                'auth_url': f'{BASE_URL}/auth/google'
+            }), 401
+        
         creds_data = user['google_credentials']
+        
+        # ✅ VALIDATE CREDENTIALS BEFORE USING
+        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
+        missing_fields = [field for field in required_fields if field not in creds_data]
+        
+        if missing_fields:
+            print(f"❌ Missing credential fields: {missing_fields}")
+            return jsonify({
+                'error': 'Google credentials incomplete. Please reconnect your Google account.',
+                'needs_auth': True,
+                'missing_fields': missing_fields,
+                'auth_url': f'{BASE_URL}/auth/google'
+            }), 401
+        
+        # Create credentials object
         credentials = Credentials(**creds_data)
-
+        
+        # ✅ CHECK IF TOKEN IS EXPIRED AND REFRESH
+        if credentials.expired and credentials.refresh_token:
+            print("🔄 Token expired, refreshing...")
+            from google.auth.transport.requests import Request
+            credentials.refresh(Request())
+            
+            # Update refreshed credentials in database
+            updated_creds = {
+                'token': credentials.token,
+                'refresh_token': credentials.refresh_token,
+                'token_uri': credentials.token_uri,
+                'client_id': credentials.client_id,
+                'client_secret': credentials.client_secret,
+                'scopes': credentials.scopes
+            }
+            users_collection.update_one(
+                {'_id': ObjectId(user_id)},
+                {'$set': {'google_credentials': updated_creds}}
+            )
+            print("✅ Token refreshed successfully")
+        
         data = request.json
         notes = data.get('notes', '')
         title = data.get('title', 'Lecture Notes')
-        note_id = data.get('note_id')
-
+        note_id = data.get('noteid')
+        
         if not notes:
             return jsonify({'error': 'No notes provided'}), 400
-
+        
+        # Create Google Doc
         docs_service = build('docs', 'v1', credentials=credentials)
         doc = docs_service.documents().create(body={'title': title}).execute()
         doc_id = doc.get('documentId')
-
-        requests_body = [{
-            'insertText': {
-                'location': {'index': 1},
-                'text': notes
-            }
-        }]
-
+        
+        # Insert content
+        requests_body = [{'insertText': {'location': {'index': 1}, 'text': notes}}]
         docs_service.documents().batchUpdate(
-            documentId=doc_id,
+            documentId=doc_id, 
             body={'requests': requests_body}
         ).execute()
-
-        doc_url = f"https://docs.google.com/document/d/{doc_id}/edit"
-        print(f"Document created: {doc_url}")
-
+        
+        doc_url = f'https://docs.google.com/document/d/{doc_id}/edit'
+        
+        # Update note with Google Doc URL
         if note_id:
             notes_collection.update_one(
                 {'_id': ObjectId(note_id), 'user_id': user_id},
@@ -1619,29 +1656,17 @@ def push_to_docs():
                     'updated_at': time.time()
                 }}
             )
-        else:
-            preview = notes[:100] + "..." if len(notes) > 100 else notes
-            new_note = {
-                'user_id': user_id,
-                'title': title,
-                'preview': preview,
-                'created_at': time.time(),
-                'updated_at': time.time(),
-                'google_doc_id': doc_id,
-                'google_doc_url': doc_url
-            }
-            result = notes_collection.insert_one(new_note)
-            note_id = str(result.inserted_id)
-
+        
         return jsonify({
             'success': True,
-            'doc_url': doc_url,
-            'doc_id': doc_id,
-            'note_id': note_id
+            'docurl': doc_url,
+            'docid': doc_id,
+            'noteid': note_id
         })
     except Exception as e:
-        print(f"ERROR pushing to docs: {str(e)}")
+        print(f"❌ ERROR pushing to docs: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 # ===========================
 # 🎵 AUDIO PLAYBACK ROUTE
