@@ -26,6 +26,8 @@ const Record = () => {
   const [isPushing, setIsPushing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [audioLoadState, setAudioLoadState] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const [isSeeking, setIsSeeking] = useState(false);
   const seekDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -44,9 +46,38 @@ const Record = () => {
       if (seekDebounceRef.current) {
         clearTimeout(seekDebounceRef.current);
       }
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current);
+      }
       wasPlayingRef.current = false;
     };
   }, []);
+
+  // ✅ ADD: Effect to monitor audio loading
+  useEffect(() => {
+    if (audioUrl && audioRef.current) {
+      setAudioLoadState('loading');
+      
+      // ✅ Set 5-second timeout
+      loadTimeoutRef.current = setTimeout(() => {
+        if (audioLoadState === 'loading') {
+          console.error('🎵 Audio load timeout!');
+          setAudioLoadState('error');
+          toast({
+            title: "Audio Load Failed",
+            description: "The audio file could not be loaded. Please try transcribing again.",
+            variant: "destructive"
+          });
+        }
+      }, 5000);
+    }
+    
+    return () => {
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current);
+      }
+    };
+  }, [audioUrl]);
 
   const startRecording = async () => {
     try {
@@ -614,10 +645,21 @@ const Record = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">🎵 Audio Playback</span>
                         <span className="text-xs text-muted-foreground font-mono">
-                          {/* ✅ BONUS FIX: Show loading state */}
-                          {duration === 0 ? 'Loading...' : `${formatTime(currentTime)} / ${formatTime(duration)}`}
+                          {/* ✅ IMPROVED: Show different states */}
+                          {audioLoadState === 'loading' && 'Loading...'}
+                          {audioLoadState === 'error' && (
+                            <span className="text-destructive">Failed to load</span>
+                          )}
+                          {audioLoadState === 'loaded' && `${formatTime(currentTime)} / ${formatTime(duration)}`}
                         </span>
                       </div>
+                      
+                      {/* ✅ ADD: Error message */}
+                      {audioLoadState === 'error' && (
+                        <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">
+                          ⚠️ Audio failed to load. The file may be corrupted or inaccessible.
+                        </div>
+                      )}
                       
                       {/* Custom Audio Controls */}
                       <div className="flex items-center gap-3">
@@ -626,7 +668,7 @@ const Record = () => {
                           size="sm"
                           variant="outline"
                           className="h-10 w-10 rounded-full p-0 flex-shrink-0 hover:scale-105 transition-transform"
-                          disabled={!duration}
+                          disabled={audioLoadState !== 'loaded'}
                         >
                           {isPlaying ? (
                             <Pause className="h-4 w-4" />
@@ -637,11 +679,13 @@ const Record = () => {
                         
                         {/* ✅ ALL FIXES APPLIED: Progress Bar */}
                         <div 
-                          className="flex-1 relative h-2 group touch-none"
-                          onTouchStart={handleTouchStart}
-                          onTouchMove={handleTouchMove}
-                          onTouchEnd={handleTouchEnd}
-                          onMouseDown={handleMouseDown}
+                          className={`flex-1 relative h-2 group touch-none ${
+                            audioLoadState !== 'loaded' ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                          onTouchStart={audioLoadState === 'loaded' ? handleTouchStart : undefined}
+                          onTouchMove={audioLoadState === 'loaded' ? handleTouchMove : undefined}
+                          onTouchEnd={audioLoadState === 'loaded' ? handleTouchEnd : undefined}
+                          onMouseDown={audioLoadState === 'loaded' ? handleMouseDown : undefined}
                         >
                           <div className="absolute inset-0 rounded-full bg-muted" />
                           
@@ -675,7 +719,7 @@ const Record = () => {
                           />
                         </div>
                       </div>
-
+                      
                       <audio
                         ref={audioRef}
                         src={audioUrl}
@@ -684,7 +728,21 @@ const Record = () => {
                           const audio = e.currentTarget;
                           if (audio.duration && isFinite(audio.duration)) {
                             setDuration(audio.duration);
-                            console.log('🎵 Audio loaded, duration:', audio.duration);
+                            setAudioLoadState('loaded');
+                            if (loadTimeoutRef.current) {
+                              clearTimeout(loadTimeoutRef.current);
+                            }
+                            console.log('🎵 Audio loaded successfully, duration:', audio.duration);
+                          } else {
+                            console.error('🎵 Invalid duration:', audio.duration);
+                            setAudioLoadState('error');
+                          }
+                        }}
+                        onCanPlay={() => {
+                          console.log('🎵 Audio can play');
+                          setAudioLoadState('loaded');
+                          if (loadTimeoutRef.current) {
+                            clearTimeout(loadTimeoutRef.current);
                           }
                         }}
                         onTimeUpdate={(e) => {
@@ -703,12 +761,23 @@ const Record = () => {
                         }}
                         onError={(e) => {
                           console.error('🎵 Audio error:', e);
+                          setAudioLoadState('error');
+                          if (loadTimeoutRef.current) {
+                            clearTimeout(loadTimeoutRef.current);
+                          }
                           toast({
                             title: "Audio Error",
-                            description: "Failed to load audio file",
+                            description: "Failed to load audio file. Check console for details.",
                             variant: "destructive"
                           });
                         }}
+                        onStalled={() => {
+                          console.warn('🎵 Audio stalled');
+                        }}
+                        onSuspend={() => {
+                          console.warn('🎵 Audio suspended');
+                        }}
+                        crossOrigin="anonymous"
                         className="hidden"
                       />
                     </div>
