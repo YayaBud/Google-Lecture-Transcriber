@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  MessageCircle,
 } from "lucide-react";
 import { gsap } from "gsap";
 import { NavLink } from "../NavLink";
@@ -28,7 +29,9 @@ const mainNavItems = [
   { title: "Record", url: "/dashboard/record", icon: Mic },
   { title: "Favorites", url: "/dashboard/favorites", icon: Star },
   { title: "Subjects", url: "/dashboard/folders", icon: FolderOpen },
+  { title: "AI Tutor", url: "/dashboard/chatbot", icon: MessageCircle },
 ];
+
 
 const bottomNavItems = [
   { title: "Settings", url: "/dashboard/settings", icon: Settings },

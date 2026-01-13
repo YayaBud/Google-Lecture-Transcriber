@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useEffect } from "react";
 import NotesFlashcards from "./pages/NotesFlashcards";
+import Chatbot from "./pages/Chatbot";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="/dashboard/folders" element={<Folders />} />
             <Route path="/dashboard/settings" element={<Settings />} />
             <Route path="/dashboard/help" element={<Help />} />
+            <Route path="/dashboard/chatbot" element={<Chatbot />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

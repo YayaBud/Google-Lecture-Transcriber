@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { api, tokenManager } from '../lib/api';
+import FloatingChatButton from './FloatingChatButton';
+
 
 const ProtectedRoute = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const location = useLocation();
+
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -21,6 +24,7 @@ const ProtectedRoute = () => {
           return;
         }
 
+
         // ✅ Check if we have a stored token
         const token = tokenManager.get();
         if (!token) {
@@ -28,6 +32,7 @@ const ProtectedRoute = () => {
           setIsAuthenticated(false);
           return;
         }
+
 
         // ✅ Verify token with backend
         console.log('🔍 Verifying token with backend...');
@@ -50,6 +55,7 @@ const ProtectedRoute = () => {
     checkAuth();
   }, [location.pathname]); // Re-check on route change
 
+
   if (isAuthenticated === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -61,7 +67,16 @@ const ProtectedRoute = () => {
     );
   }
 
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+
+  return isAuthenticated ? (
+    <>
+      <Outlet />
+      <FloatingChatButton />
+    </>
+  ) : (
+    <Navigate to="/login" replace />
+  );
 };
+
 
 export default ProtectedRoute;
