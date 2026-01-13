@@ -60,7 +60,7 @@ async function authFetch(url: string, options: RequestInit = {}) {
   
   const config: RequestInit = {
     ...options,
-    credentials: 'include', // Still send cookies for desktop
+    credentials: 'include',
     headers: {
       ...getAuthHeaders(),
       ...(options.headers || {})
@@ -71,12 +71,10 @@ async function authFetch(url: string, options: RequestInit = {}) {
     const response = await fetch(url, config);
     console.log(`📥 Response from ${url}:`, response.status, response.statusText);
     
-    // If 401, token might be expired - redirect to login
     if (response.status === 401) {
       console.error('❌ 401 Unauthorized - Token expired or invalid');
       tokenManager.remove();
       
-      // Don't redirect if already on login page
       if (!window.location.pathname.includes('/login')) {
         console.log('🔄 Redirecting to login...');
         window.location.href = '/login';
@@ -105,7 +103,6 @@ export const api = {
       const json = await response.json();
       console.log('📥 Register response:', json);
       
-      // ✅ Store token if provided
       if (json.token) {
         console.log('✅ Token received from registration');
         tokenManager.set(json.token);
@@ -132,7 +129,6 @@ export const api = {
       const json = await response.json();
       console.log('📥 Login response:', json);
       
-      // ✅ Store token if provided
       if (json.token) {
         console.log('✅ Token received from login');
         tokenManager.set(json.token);
@@ -151,12 +147,11 @@ export const api = {
     console.log('👋 Logging out...');
     try {
       const response = await authFetch(`${API_URL}/auth/logout`);
-      tokenManager.remove(); // ✅ Clear token on logout
+      tokenManager.remove();
       console.log('✅ Logout successful');
       return await response.json();
     } catch (error) {
       console.error('❌ Logout error:', error);
-      // Still remove token even if request fails
       tokenManager.remove();
       throw error;
     }
@@ -190,6 +185,19 @@ export const api = {
       return data;
     } catch (error) {
       console.error('❌ Failed to fetch notes:', error);
+      throw error;
+    }
+  },
+
+  async getNote(noteId: string) {
+    console.log('📄 Fetching note:', noteId);
+    try {
+      const response = await authFetch(`${API_URL}/notes/${noteId}`);
+      const data = await response.json();
+      console.log('✅ Note fetched:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to fetch note:', error);
       throw error;
     }
   },
@@ -252,6 +260,22 @@ export const api = {
       return data;
     } catch (error) {
       console.error('❌ Failed to toggle favorite:', error);
+      throw error;
+    }
+  },
+
+  async pushToGoogleDocs(noteId: string, notes: string, title: string) {
+    console.log('📤 Pushing to Google Docs:', { noteId, title });
+    try {
+      const response = await authFetch(`${API_URL}/push-to-docs`, {
+        method: 'POST',
+        body: JSON.stringify({ noteid: noteId, notes, title })
+      });
+      const data = await response.json();
+      console.log('✅ Push to Docs response:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to push to Google Docs:', error);
       throw error;
     }
   },

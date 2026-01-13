@@ -35,8 +35,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../components/ui/alert-dialog";
+import { api } from "../lib/api"; // ✅ ADDED: Import api
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000';
 
 interface Note {
   id: string;
@@ -45,6 +46,7 @@ interface Note {
   created_at: number;
   google_doc_url?: string;
   is_favorite?: boolean;
+  content?: string; // ✅ ADDED: For storing full note content
 }
 
 // ✅ Helper function to get auth headers with proper typing
@@ -227,11 +229,57 @@ const AllNotes = () => {
     }
   };
 
-  const handleNoteClick = (note: Note) => {
+  // ✅ UPDATED: Add Google Docs sync functionality
+  const handleNoteClick = async (note: Note) => {
     if (selectionMode) {
       toggleNoteSelection(note.id);
-    } else if (note.google_doc_url) {
+      return;
+    }
+
+    // If already synced, just open it
+    if (note.google_doc_url) {
       window.open(note.google_doc_url, '_blank');
+      return;
+    }
+
+    // Otherwise, sync first then open
+    toast({
+      title: "Syncing...",
+      description: "Creating Google Doc for this note...",
+    });
+
+    try {
+      // Fetch the full note content
+      const noteData = await api.getNote(note.id);
+
+      // Push to Google Docs
+      const result = await api.pushToGoogleDocs(
+        note.id,
+        noteData.content || note.preview,
+        note.title
+      );
+
+      if (result.success && result.docurl) {
+        toast({
+          title: "Success!",
+          description: "Note synced to Google Docs",
+        });
+        
+        // Refresh notes to get the new google_doc_url
+        await fetchNotes();
+        
+        // Open the Google Doc
+        window.open(result.docurl, '_blank');
+      } else {
+        throw new Error('Failed to create Google Doc');
+      }
+    } catch (error) {
+      console.error('Failed to sync note:', error);
+      toast({
+        title: "Error",
+        description: "Failed to sync to Google Docs. Make sure you're connected to Google.",
+        variant: "destructive"
+      });
     }
   };
 

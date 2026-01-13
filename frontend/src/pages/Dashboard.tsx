@@ -12,7 +12,6 @@ import { Input } from "../components/ui/input";
 import { api, tokenManager } from '../lib/api';
 import { DebugAuth } from '../components/DebugAuth';
 
-
 interface Note {
   id: string;
   title: string;
@@ -20,15 +19,14 @@ interface Note {
   created_at: number;
   google_doc_url?: string;
   is_favorite?: boolean;
+  content?: string; // ✅ ADDED: For storing full note content
 }
-
 
 interface Folder {
   id: string;
   name: string;
   note_ids: string[];
 }
-
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -41,7 +39,6 @@ const container: Variants = {
   }
 };
 
-
 const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { 
@@ -53,7 +50,6 @@ const item: Variants = {
     }
   }
 };
-
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -187,15 +183,51 @@ const Dashboard = () => {
     }
   };
 
-  const handleNoteClick = (note: Note) => {
+  // ✅ UPDATED: Add Google Docs sync functionality
+  const handleNoteClick = async (note: Note) => {
+    // If already synced, just open it
     if (note.google_doc_url) {
       window.open(note.google_doc_url, '_blank');
-    } else {
-      console.log('Note has no Google Doc URL yet');
+      return;
+    }
+
+    // Otherwise, sync first then open
+    toast({
+      title: "Syncing...",
+      description: "Creating Google Doc for this note...",
+    });
+
+    try {
+      // Fetch the full note content
+      const noteData = await api.getNote(note.id);
+
+      // Push to Google Docs
+      const result = await api.pushToGoogleDocs(
+        note.id,
+        noteData.content || note.preview,
+        note.title
+      );
+
+      if (result.success && result.docurl) {
+        toast({
+          title: "Success!",
+          description: "Note synced to Google Docs",
+        });
+        
+        // Refresh notes to get the new google_doc_url
+        await fetchData();
+        
+        // Open the Google Doc
+        window.open(result.docurl, '_blank');
+      } else {
+        throw new Error('Failed to create Google Doc');
+      }
+    } catch (error) {
+      console.error('Failed to sync note:', error);
       toast({
-        title: "Info",
-        description: "This note hasn't been synced to Google Docs yet.",
-        variant: "default"
+        title: "Error",
+        description: "Failed to sync to Google Docs. Make sure you're connected to Google.",
+        variant: "destructive"
       });
     }
   };
@@ -327,37 +359,31 @@ const Dashboard = () => {
                   )}
                 </div>
               ) : (
-                <>
-                  {/* Grid with animation container */}
-                  <motion.div 
-                    className="grid grid-cols-1 md:grid-cols-2 gap-6"
-                    variants={container}
-                    initial="hidden"
-                    animate="show"
-                    key={searchQuery} // Re-trigger animation on search
-                  >
-                    {(searchQuery ? filteredNotes : filteredNotes.slice(0, 4)).map((note) => (
-                      <motion.div 
-                        key={note.id} 
-                        variants={item}
-                      >
-                        <NoteCard 
-                          id={note.id}
-                          title={note.title}
-                          subject="General"
-                          date={new Date(note.created_at * 1000).toLocaleDateString()}
-                          duration="N/A"
-                          preview={note.preview}
-                          isFavorite={note.is_favorite || false}
-                          onToggleFavorite={() => handleToggleFavorite(note.id)}
-                          onClick={() => handleNoteClick(note)}
-                          onRename={(newTitle) => handleRename(note.id, newTitle)}
-                          onDelete={() => handleDelete(note.id)}
-                        />
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                </>
+                <motion.div 
+                  className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                  variants={container}
+                  initial="hidden"
+                  animate="show"
+                  key={searchQuery} // Re-trigger animation on search
+                >
+                  {(searchQuery ? filteredNotes : filteredNotes.slice(0, 4)).map((note) => (
+                    <motion.div key={note.id} variants={item}>
+                      <NoteCard
+                        id={note.id}
+                        title={note.title}
+                        subject="General"
+                        date={new Date(note.created_at * 1000).toLocaleDateString()}
+                        duration="N/A"
+                        preview={note.preview}
+                        isFavorite={note.is_favorite || false}
+                        onToggleFavorite={() => handleToggleFavorite(note.id)}
+                        onClick={() => handleNoteClick(note)}
+                        onRename={(newTitle) => handleRename(note.id, newTitle)}
+                        onDelete={() => handleDelete(note.id)}
+                      />
+                    </motion.div>
+                  ))}
+                </motion.div>
               )}
             </div>
           </motion.div>
@@ -372,8 +398,8 @@ const Dashboard = () => {
           </Button>
         </main>
 
-        {/* 🐛 DEBUG COMPONENT - Shows auth info at bottom of screen */}
-        {/*<DebugAuth />*/}
+        {/* DEBUG COMPONENT - Shows auth info at bottom of screen */}
+        <DebugAuth />
       </div>
     </div>
   );
