@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://google-lecture-transcriber-production.up.railway.app';
+const API_URL = (import.meta as any).env.VITE_API_URL || 'https://google-lecture-transcriber-production.up.railway.app';
 
 console.log('🌐 API URL configured:', API_URL);
 
@@ -40,7 +40,7 @@ function getAuthHeaders(): HeadersInit {
   const headers: HeadersInit = {
     'Content-Type': 'application/json'
   };
-  
+
   const token = tokenManager.get();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -48,7 +48,7 @@ function getAuthHeaders(): HeadersInit {
   } else {
     console.log('⚠️ No token available for Authorization header');
   }
-  
+
   return headers;
 }
 
@@ -57,7 +57,7 @@ async function authFetch(url: string, options: RequestInit = {}) {
   const token = tokenManager.get();
   console.log('📡 Making authenticated request to:', url);
   console.log('🔐 Token available:', !!token);
-  
+
   const config: RequestInit = {
     ...options,
     credentials: 'include',
@@ -66,22 +66,22 @@ async function authFetch(url: string, options: RequestInit = {}) {
       ...(options.headers || {})
     }
   };
-  
+
   try {
     const response = await fetch(url, config);
     console.log(`📥 Response from ${url}:`, response.status, response.statusText);
-    
+
     if (response.status === 401) {
       console.error('❌ 401 Unauthorized - Token expired or invalid');
       tokenManager.remove();
-      
+
       if (!window.location.pathname.includes('/login')) {
         console.log('🔄 Redirecting to login...');
         window.location.href = '/login';
       }
       throw new Error('Authentication required');
     }
-    
+
     return response;
   } catch (error) {
     console.error('❌ Network error during authFetch:', error);
@@ -102,14 +102,14 @@ export const api = {
       });
       const json = await response.json();
       console.log('📥 Register response:', json);
-      
+
       if (json.token) {
         console.log('✅ Token received from registration');
         tokenManager.set(json.token);
       } else {
         console.warn('⚠️ No token in registration response');
       }
-      
+
       return { response, data: json };
     } catch (error) {
       console.error('❌ Registration error:', error);
@@ -128,14 +128,14 @@ export const api = {
       });
       const json = await response.json();
       console.log('📥 Login response:', json);
-      
+
       if (json.token) {
         console.log('✅ Token received from login');
         tokenManager.set(json.token);
       } else {
         console.warn('⚠️ No token in login response');
       }
-      
+
       return { response, data: json };
     } catch (error) {
       console.error('❌ Login error:', error);
@@ -264,18 +264,18 @@ export const api = {
     }
   },
 
-  async pushToGoogleDocs(noteId: string, notes: string, title: string) {
-    console.log('📤 Pushing to Google Docs:', { noteId, title });
+  // ✅ FIXED: Changed from pushToGoogleDocs to exportToGoogleDocs
+  async exportToGoogleDocs(noteId: string) {
+    console.log('📤 Exporting to Google Docs:', noteId);
     try {
-      const response = await authFetch(`${API_URL}/push-to-docs`, {
-        method: 'POST',
-        body: JSON.stringify({ noteid: noteId, notes, title })
+      const response = await authFetch(`${API_URL}/notes/${noteId}/export-google-docs`, {
+        method: 'POST'
       });
       const data = await response.json();
-      console.log('✅ Push to Docs response:', data);
+      console.log('✅ Export to Docs response:', data);
       return data;
     } catch (error) {
-      console.error('❌ Failed to push to Google Docs:', error);
+      console.error('❌ Failed to export to Google Docs:', error);
       throw error;
     }
   },

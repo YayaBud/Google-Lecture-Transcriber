@@ -182,8 +182,8 @@ const Dashboard = () => {
       });
     }
   };
-
-  // ✅ UPDATED: Add Google Docs sync functionality
+  
+  // ✅ UPDATED: Fixed Google Docs sync functionality
   const handleNoteClick = async (note: Note) => {
     // If already synced, just open it
     if (note.google_doc_url) {
@@ -198,40 +198,50 @@ const Dashboard = () => {
     });
 
     try {
-      // Fetch the full note content
-      const noteData = await api.getNote(note.id);
+      // ✅ Use the correct export endpoint
+      const result = await api.exportToGoogleDocs(note.id);
 
-      // Push to Google Docs
-      const result = await api.pushToGoogleDocs(
-        note.id,
-        noteData.content || note.preview,
-        note.title
-      );
-
-      if (result.success && result.docurl) {
+      if (result.success && result.google_doc_url) {
         toast({
           title: "Success!",
           description: "Note synced to Google Docs",
         });
-        
+
         // Refresh notes to get the new google_doc_url
         await fetchData();
-        
+
         // Open the Google Doc
-        window.open(result.docurl, '_blank');
+        window.open(result.google_doc_url, '_blank');
       } else {
         throw new Error('Failed to create Google Doc');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to sync note:', error);
-      toast({
-        title: "Error",
-        description: "Failed to sync to Google Docs. Make sure you're connected to Google.",
-        variant: "destructive"
-      });
+
+      // Check if user needs to reconnect Google
+      const errorMessage = error?.message || '';
+      const needsAuth = errorMessage.includes('not connected') || 
+                       errorMessage.includes('credentials') ||
+                       errorMessage.includes('Authentication required');
+
+      if (needsAuth) {
+        const shouldReconnect = window.confirm(
+          'Your Google account needs to be connected to sync notes to Google Docs.\n\nWould you like to connect now?'
+        );
+
+        if (shouldReconnect) {
+          const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000';
+          window.location.href = `${API_URL}/auth/google`;
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to sync to Google Docs. Please try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
-
   // Filter notes based on search query
   const filteredNotes = notes.filter(note => {
     const query = searchQuery.toLowerCase();
