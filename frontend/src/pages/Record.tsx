@@ -437,9 +437,8 @@ const Record = () => {
   };
 
 
-  // ✅ FIX #2: Skip onChange during mouse/touch seeking
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isSeeking) return; // ✅ CRITICAL FIX: Skip if dragging
+    if (isSeeking) return;
     
     if (!audioRef.current || !duration) return;
     const time = parseFloat(e.target.value);
@@ -506,7 +505,6 @@ const Record = () => {
   };
 
 
-  // ✅ FIX #1: Proper element reference in mouse handler
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration) return;
     e.preventDefault();
@@ -518,14 +516,12 @@ const Record = () => {
     }
 
 
-    // ✅ CRITICAL FIX: Store element reference correctly
     const progressBar = e.currentTarget;
 
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!audioRef.current || !duration) return;
       
-      // ✅ Use stored reference (not stale e.currentTarget)
       const rect = progressBar.getBoundingClientRect();
       const x = moveEvent.clientX - rect.left;
       const percentage = Math.max(0, Math.min(x / rect.width, 1));
@@ -570,7 +566,6 @@ const Record = () => {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
            
-            {/* Recording Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Audio Input</CardTitle>
@@ -674,7 +669,6 @@ const Record = () => {
             </Card>
 
 
-            {/* ✅ PRODUCTION-READY: Transcript Card with Audio Player */}
             {hasTranscribed && (
               <Card>
                 <CardHeader>
@@ -690,13 +684,11 @@ const Record = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* ✅ PRODUCTION-READY: Audio Player with All Critical Fixes */}
                   {audioUrl && (
                     <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">🎵 Audio Playback</span>
                         <span className="text-xs text-muted-foreground font-mono">
-                          {/* ✅ IMPROVED: Show different states */}
                           {audioLoadState === 'loading' && 'Loading...'}
                           {audioLoadState === 'error' && (
                             <span className="text-destructive">Failed to load</span>
@@ -705,14 +697,12 @@ const Record = () => {
                         </span>
                       </div>
                       
-                      {/* ✅ ADD: Error message */}
                       {audioLoadState === 'error' && (
                         <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">
                           ⚠️ Audio failed to load. The file may be corrupted or inaccessible.
                         </div>
                       )}
                       
-                      {/* Custom Audio Controls */}
                       <div className="flex items-center gap-3">
                         <Button
                           onClick={togglePlayPause}
@@ -728,7 +718,6 @@ const Record = () => {
                           )}
                         </Button>
                         
-                        {/* ✅ ALL FIXES APPLIED: Progress Bar */}
                         <div 
                           className={`flex-1 relative h-2 group touch-none ${
                             audioLoadState !== 'loaded' ? 'opacity-50 cursor-not-allowed' : ''
@@ -775,18 +764,36 @@ const Record = () => {
                         ref={audioRef}
                         src={audioUrl}
                         preload="metadata"
+                        onLoadStart={() => {
+                          console.log('🎵 Audio load started');
+                          setAudioLoadState('loading');
+                        }}
                         onLoadedMetadata={(e) => {
                           const audio = e.currentTarget;
+                          console.log('🎵 onLoadedMetadata fired, readyState:', audio.readyState, 'duration:', audio.duration);
+                          
                           if (audio.duration && isFinite(audio.duration)) {
                             setDuration(audio.duration);
                             setAudioLoadState('loaded');
                             if (loadTimeoutRef.current) {
                               clearTimeout(loadTimeoutRef.current);
                             }
-                            console.log('🎵 Audio loaded successfully, duration:', audio.duration);
+                            console.log('✅ Audio loaded successfully, duration:', audio.duration);
                           } else {
-                            console.error('🎵 Invalid duration:', audio.duration);
-                            setAudioLoadState('error');
+                            console.warn('⚠️ Duration not available yet:', audio.duration);
+                          }
+                        }}
+                        onLoadedData={(e) => {
+                          const audio = e.currentTarget;
+                          console.log('🎵 onLoadedData fired, duration:', audio.duration);
+                          
+                          if (audio.duration && isFinite(audio.duration) && duration === 0) {
+                            setDuration(audio.duration);
+                            setAudioLoadState('loaded');
+                            if (loadTimeoutRef.current) {
+                              clearTimeout(loadTimeoutRef.current);
+                            }
+                            console.log('✅ Audio duration set from loadedData:', audio.duration);
                           }
                         }}
                         onCanPlay={() => {
@@ -794,6 +801,18 @@ const Record = () => {
                           setAudioLoadState('loaded');
                           if (loadTimeoutRef.current) {
                             clearTimeout(loadTimeoutRef.current);
+                          }
+                        }}
+                        onDurationChange={(e) => {
+                          const audio = e.currentTarget;
+                          console.log('🎵 Duration changed:', audio.duration);
+                          
+                          if (audio.duration && isFinite(audio.duration)) {
+                            setDuration(audio.duration);
+                            setAudioLoadState('loaded');
+                            if (loadTimeoutRef.current) {
+                              clearTimeout(loadTimeoutRef.current);
+                            }
                           }
                         }}
                         onTimeUpdate={(e) => {
@@ -811,14 +830,20 @@ const Record = () => {
                           setCurrentTime(0);
                         }}
                         onError={(e) => {
-                          console.error('🎵 Audio error:', e);
+                          const audio = e.currentTarget;
+                          const error = audio.error;
+                          console.error('🎵 Audio error:', {
+                            code: error?.code,
+                            message: error?.message,
+                            src: audio.src
+                          });
                           setAudioLoadState('error');
                           if (loadTimeoutRef.current) {
                             clearTimeout(loadTimeoutRef.current);
                           }
                           toast({
                             title: "Audio Error",
-                            description: "Failed to load audio file. Check console for details.",
+                            description: `Failed to load audio: ${error?.message || 'Unknown error'}`,
                             variant: "destructive"
                           });
                         }}
@@ -872,7 +897,6 @@ const Record = () => {
             )}
 
 
-            {/* Notes Card */}
             {notes && (
               <Card>
                 <CardHeader>
