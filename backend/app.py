@@ -542,24 +542,25 @@ def google_login():
 @app.route('/auth/google/callback')
 def google_login_callback():
     if not CLIENT_SECRET_FILE:
-        return redirect(f"{FRONTEND_REDIRECT}/login?error=oauth_not_configured")
-
+        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_not_configured')
+    
     try:
         if 'state' not in session:
             print("❌ State missing from session")
-            return redirect(f"{FRONTEND_REDIRECT}/login?error=state_missing")
-
+            return redirect(f'{FRONTEND_REDIRECT}/login?error=state_missing')
+        
         state = session['state']
-
         flow = Flow.from_client_secrets_file(
             CLIENT_SECRET_FILE,
             scopes=LOGIN_SCOPES,
             state=state,
             redirect_uri=f'{BASE_URL}/auth/google/callback'
         )
+        
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
-
+        
+        # ✅ BUILD COMPLETE CREDENTIALS OBJECT
         creds_data = {
             'token': credentials.token,
             'refresh_token': credentials.refresh_token,
@@ -568,55 +569,70 @@ def google_login_callback():
             'client_secret': credentials.client_secret,
             'scopes': credentials.scopes
         }
-
+        
+        # ✅ VALIDATE ALL REQUIRED FIELDS ARE PRESENT
+        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
+        missing_fields = [field for field in required_fields if not creds_data.get(field)]
+        
+        if missing_fields:
+            print(f"❌ Missing credential fields after OAuth: {missing_fields}")
+            return redirect(f'{FRONTEND_REDIRECT}/login?error=incomplete_credentials')
+        
+        print("✅ All credential fields present")
+        
+        # Get user info
         service = build('oauth2', 'v2', credentials=credentials)
-        user_info = service.userinfo().get().execute()
-
-        email = user_info.get('email')
-        first_name = user_info.get('given_name', '')
-        last_name = user_info.get('family_name', '')
-
+        userinfo = service.userinfo().get().execute()
+        
+        email = userinfo.get('email')
+        first_name = userinfo.get('given_name', '')
+        last_name = userinfo.get('family_name', '')
+        
         if not email:
-            return redirect(f"{FRONTEND_REDIRECT}/login?error=no_email")
-
+            return redirect(f'{FRONTEND_REDIRECT}/login?error=no_email')
+        
+        # Find or create user
         user = users_collection.find_one({'email': email})
-
+        
         if user:
-            user_id = user['_id']
+            # ✅ UPDATE existing user with complete credentials
             users_collection.update_one(
-                {'_id': user_id},
-                {'$set': {'google_credentials': creds_data}}
+                {'_id': user['_id']},
+                {'$set': {
+                    'google_credentials': creds_data,
+                    'first_name': first_name,
+                    'last_name': last_name
+                }}
             )
+            user_id = str(user['_id'])
+            print(f"✅ Updated existing user {email} with Google credentials")
         else:
-            user_id = users_collection.insert_one({
+            # ✅ CREATE new user with complete credentials
+            new_user = {
                 'email': email,
                 'first_name': first_name,
                 'last_name': last_name,
-                'created_at': time.time(),
-                'auth_provider': 'google',
-                'google_credentials': creds_data
-            }).inserted_id
-
-        # ✅ Set session for desktop browsers
-        session['user_id'] = str(user_id)
-        session.permanent = True
+                'google_credentials': creds_data,
+                'created_at': time.time()
+            }
+            result = users_collection.insert_one(new_user)
+            user_id = str(result.inserted_id)
+            print(f"✅ Created new user {email} with Google credentials")
         
-        # ✅ Create JWT token for mobile/all platforms
-        token = create_access_token(str(user_id))
-
-        print(f"✅ User {email} logged in successfully via Google OAuth!")
-        print(f"✅ Generated token for user: {str(user_id)}")
-
-        # ✅ Redirect with token in URL for mobile compatibility
-        redirect_url = f"{FRONTEND_REDIRECT}/dashboard?token={token}"
+        # Create JWT token
+        token = create_access_token(user_id)
         
-        return redirect(redirect_url)
-
+        # Set session
+        session['user_id'] = user_id
+        
+        # ✅ REDIRECT WITH TOKEN
+        return redirect(f'{FRONTEND_REDIRECT}/dashboard?token={token}')
+        
     except Exception as e:
         print(f"❌ OAuth callback error: {str(e)}")
         import traceback
         traceback.print_exc()
-        return redirect(f"{FRONTEND_REDIRECT}/login?error=auth_failed")
+        return redirect(f'{FRONTEND_REDIRECT}/login?error=oauth_failed')
 
 @app.route('/register', methods=['POST'])
 def register():
